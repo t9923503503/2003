@@ -85,8 +85,8 @@ function _regModalHtml() {
             <div class="reg-result-name">${esc(p.name)}</div>
             <div class="reg-result-meta">
               ${p.status === 'temporary' ? '<span class="temp">ВРЕМЕННЫЙ</span>' : ''}
-              <span>🏆 ${p.tournaments_played || 0} турн.</span>
-              <span>⭐ ${p.total_pts || 0} очков</span>
+              <span>🏆 ${p.tournaments || 0} турн.</span>
+              <span>⭐ ${p.totalPts || 0} очков</span>
             </div>
           </div>
           <div class="reg-result-action">→</div>
@@ -182,7 +182,7 @@ function regOnSearch(query) {
   if (spin) spin.classList.add('active');
 
   _regDebounce = setTimeout(async () => {
-    // ── Helper: search localStorage ──
+    // ── Helper: search localStorage (returns canonical players) ──
     function _searchLocal(lq) {
       const db = loadPlayerDB();
       return db
@@ -192,15 +192,7 @@ function regOnSearch(query) {
           const bStart = b.name.toLowerCase().startsWith(lq) ? 1 : 0;
           return bStart - aStart || (b.tournaments || 0) - (a.tournaments || 0);
         })
-        .slice(0, 10)
-        .map(p => ({
-          id:    p.id,
-          name:  p.name,
-          gender: p.gender,
-          status: 'active',
-          tournaments_played: p.tournaments || 0,
-          total_pts: p.totalPts || 0
-        }));
+        .slice(0, 10);
     }
 
     const lq = q.toLowerCase();
@@ -213,9 +205,10 @@ function regOnSearch(query) {
         if (error) throw error;
         // Merge: Supabase results + local-only players (by id dedup)
         const remote = data || [];
+        const remoteCanonical = remote.map(r => fromSupabasePlayer(r)).filter(Boolean);
         const local  = _searchLocal(lq);
-        const seenIds = new Set(remote.map(r => r.id));
-        _regResults = [...remote, ...local.filter(l => !seenIds.has(l.id))].slice(0, 15);
+        const seenIds = new Set(remoteCanonical.map(r => r.id));
+        _regResults = [...remoteCanonical, ...local.filter(l => !seenIds.has(l.id))].slice(0, 15);
       } else {
         _regResults = _searchLocal(lq);
       }
@@ -251,14 +244,10 @@ async function regSelectPlayer(playerId, playerName) {
       if (error) throw error;
 
       if (data.ok) {
-        upsertPlayerInDB({
-          id: playerId,
-          name: playerName,
-          gender: match?.gender || 'M',
-          status: match?.status || 'active',
-          tournaments_played: match?.tournaments_played ?? 0,
-          total_pts: match?.total_pts ?? 0,
-        });
+        upsertPlayerInDB(
+          match ? { ...match, id: playerId, name: playerName }
+          : { id: playerId, name: playerName, gender: 'M', status: 'active', tournaments: 0, totalPts: 0 }
+        );
         // Синхронизируем с localStorage
         _regSyncLocalParticipant(playerId, data.waitlist);
         // Закрыть модалку и показать toast
@@ -450,13 +439,13 @@ async function regSubmitTemp() {
         throw new Error(playerRpc?.message || playerRpc?.error || 'Ошибка создания игрока');
       }
       const remotePlayer = playerRpc.player;
-      upsertPlayerInDB({
+      upsertPlayerInDB(fromSupabasePlayer(remotePlayer) || {
         id: remotePlayer.id,
         name: remotePlayer.name,
         gender: remotePlayer.gender || _regFormGender,
         status: remotePlayer.status || 'temporary',
-        tournaments_played: remotePlayer.tournaments_played ?? 0,
-        total_pts: remotePlayer.total_pts ?? 0,
+        tournaments: remotePlayer.tournaments_played ?? 0,
+        totalPts: remotePlayer.total_pts ?? 0,
       });
 
       // ② Сразу регистрируем через RPC

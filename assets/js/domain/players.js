@@ -1,6 +1,8 @@
 'use strict';
 
 // Player store and roster sync helpers.
+// Внутри приложения все игроки имеют один формат (canonical). Совместимость со старым
+// localStorage и с полями Supabase (total_pts, tournaments_played) — только в адаптерах ниже.
 // Canonical frontend player shape (normalized):
 // {
 //   id: string|number,
@@ -222,8 +224,16 @@ function syncPlayersFromTournament(players, date) {
       existing.totalPts    = (existing.totalPts    || 0) + (p.totalPts || 0);
       existing.lastSeen    = date;
     } else {
-      db.push({ id: Date.now() + Math.random(), name: p.name, gender: p.gender,
-                addedAt: date, tournaments: 1, totalPts: p.totalPts || 0, lastSeen: date });
+      const created = fromLocalPlayer({
+        name: p.name,
+        gender: p.gender,
+        addedAt: date,
+        tournaments: 1,
+        totalPts: p.totalPts || 0,
+        lastSeen: date,
+      });
+      if (!created.id) created.id = Date.now() + Math.random();
+      db.push(created);
     }
   });
   savePlayerDB(db);
