@@ -85,18 +85,27 @@ function fromSupabasePlayer(raw) {
   return base;
 }
 
+let _playerDbCache = null;
+let _playerDbCacheTs = 0;
+
 function loadPlayerDB() {
+  const ts = +(localStorage.getItem('kotc3_playerdb_ts') || 0);
+  if (_playerDbCache && ts === _playerDbCacheTs) return _playerDbCache;
   try {
     const raw = JSON.parse(localStorage.getItem('kotc3_playerdb') || '[]');
-    if (!Array.isArray(raw)) return [];
-    const normalized = raw.map(fromLocalPlayer).filter(Boolean);
-    return normalized;
+    if (!Array.isArray(raw)) { _playerDbCache = []; _playerDbCacheTs = ts; return []; }
+    _playerDbCache = raw.map(fromLocalPlayer).filter(Boolean);
+    _playerDbCacheTs = ts;
+    return _playerDbCache;
   } catch(e){
     return [];
   }
 }
 function savePlayerDB(db) {
+  const ts = Date.now();
   localStorage.setItem('kotc3_playerdb', JSON.stringify((db || []).map(toLocalPlayer)));
+  localStorage.setItem('kotc3_playerdb_ts', String(ts));
+  _playerDbCache = null; // invalidate cache
 }
 function remapPlayerIdInTournaments(oldId, newId) {
   if (oldId === newId) return;

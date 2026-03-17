@@ -355,8 +355,14 @@ async function finishTournament() {
   localStorage.setItem('kotc3_history', JSON.stringify(history));
 
   showToast('🏆 Турнир сохранён в архиве!');
-  // Sync players to database
+  // Recalc ratings first so sbPublishTournament sends up-to-date stats
+  recalcAllPlayerStats(/*silent*/ true);
+  // Sync players to database (legacy quick sync)
   syncPlayersFromTournament(players, date);
+  // Publish results to Supabase (public — visible to all site visitors)
+  if (sbEnsureClient()) {
+    sbPublishTournament(snapshot).catch(e => console.warn('sbPublishTournament:', e));
+  }
   // Auto-export to Google Sheets if connected
   if (gshIsConnected()) {
     gshExportTournament(snapshot, null).catch(()=>{});

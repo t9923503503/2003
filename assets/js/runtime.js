@@ -10,9 +10,18 @@ function attachListeners() {
   sc.addEventListener('click', scoreClickHandler);
 }
 
+let _scoreAudioCtx = null;
+function _getAudioCtx() {
+  if (!_scoreAudioCtx || _scoreAudioCtx.state === 'closed') {
+    _scoreAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (_scoreAudioCtx.state === 'suspended') _scoreAudioCtx.resume();
+  return _scoreAudioCtx;
+}
+
 function playScoreSound(dir) {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = _getAudioCtx();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -23,13 +32,12 @@ function playScoreSound(dir) {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.18);
-    osc.onended = () => ctx.close();
   } catch(e) {}
 }
 
 function playComboSound() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = _getAudioCtx();
     const notes = [523, 659, 784, 1047]; // до-ми-соль-до (мажорный аккорд вверх)
     notes.forEach((freq, i) => {
       const osc  = ctx.createOscillator();
@@ -44,7 +52,6 @@ function playComboSound() {
       osc.start(t);
       osc.stop(t + 0.22);
     });
-    setTimeout(() => ctx.close(), 800);
   } catch(e) {}
 }
 

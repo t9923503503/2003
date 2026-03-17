@@ -576,6 +576,110 @@ function sbGetLocalState() {
   };
 }
 
+// ════════════════════════════════════════════════════════════
+// PUBLIC DATA PUBLISHING — история и рейтинг видны всем
+// ════════════════════════════════════════════════════════════
+
+/**
+ * Публикует результаты завершённого турнира в Supabase.
+ * Вызывается после finishTournament(). Не требует активной room-сессии —
+ * достаточно настроенного Supabase URL + anonKey.
+ * Идемпотентна: повторный вызов с тем же snapshot.id не создаёт дубликатов.
+ *
+ * @param {object} snapshot  — объект из finishTournament()
+ */
+async function sbPublishTournament(snapshot) {
+  const client = sbEnsureClient();
+  if (!client) return; // Supabase не настроен
+
+  const db          = loadPlayerDB();
+  const ratingType  = divisionToType(tournamentMeta.division || '');
+  const division    = tournamentMeta.division || 'Мужской';
+  const format      = tournamentMeta.format   || 'King of the Court';
+
+  // Строим payload: данные за этот турнир + накопленная статистика из БД
+  const results = snapshot.players.map((p, idx) => {
+    const place     = idx + 1;
+    const ratingPts = calculateRanking(place);
+    const dbP = db.find(d => d.name === p.name && d.gender === p.gender)
+              || db.find(d => d.name === p.name);
+    return {
+      name:               p.name,
+      gender:             p.gender,
+      place,
+      game_pts:           p.totalPts            || 0,
+      rating_pts:         ratingPts,
+      rating_type:        ratingType,
+      // Накопленные рейтинги (результат recalcAllPlayerStats на клиенте)
+      rating_m:           dbP?.ratingM          ?? 0,
+      rating_w:           dbP?.ratingW          ?? 0,
+      rating_mix:         dbP?.ratingMix        ?? 0,
+      tournaments_m:      dbP?.tournamentsM     ?? 0,
+      tournaments_w:      dbP?.tournamentsW     ?? 0,
+      tournaments_mix:    dbP?.tournamentsMix   ?? 0,
+      wins:               dbP?.wins             ?? 0,
+      last_seen:          dbP?.lastSeen         || null,
+      total_pts:          dbP?.totalPts         ?? 0,
+      tournaments_played: dbP?.tournaments      ?? 0,
+    };
+  });
+
+  if (!results.length) return;
+
+  try {
+    const { data, error } = await client.rpc('publish_tournament_results', {
+      p_external_id: String(snapshot.id),
+      p_name:        snapshot.name,
+      p_date:        snapshot.date,
+      p_format:      format,
+      p_division:    division,
+      p_results:     results,
+    });
+
+    if (error) {
+      console.warn('[sbPublishTournament] RPC error:', error.message);
+      return;
+    }
+
+    if (data?.ok) {
+      showToast(`☁️ Опубликовано: ${data.results_saved} результатов`, 'success');
+    }
+  } catch (e) {
+    console.warn('[sbPublishTournament] exception:', e);
+  }
+}
+
+/**
+ * Загружает публичный рейтинг и историю турниров из Supabase.
+ * Работает без room-сессии — только URL + anonKey.
+ * Используется для отображения публичного экрана рейтинга.
+ *
+ * @param {'M'|'W'|'Mix'} type
+ * @returns {{ leaderboard: Array, history: Array } | null}
+ */
+async function sbPublicFetch(type = 'M') {
+  const client = sbEnsureClient();
+  if (!client) return null;
+
+  try {
+    const [lbRes, histRes] = await Promise.all([
+      client.rpc('get_public_leaderboard',        { p_type: type, p_limit: 100 }),
+      client.rpc('get_public_tournament_history', { p_limit: 20, p_offset: 0  }),
+    ]);
+
+    if (lbRes.error)   console.warn('[sbPublicFetch] leaderboard error:', lbRes.error.message);
+    if (histRes.error) console.warn('[sbPublicFetch] history error:',     histRes.error.message);
+
+    return {
+      leaderboard: lbRes.data  || [],
+      history:     histRes.data || [],
+    };
+  } catch (e) {
+    console.warn('[sbPublicFetch] exception:', e);
+    return null;
+  }
+}
+
 // ── Render config card ────────────────────────────────────
 function renderSupabaseCard() {
   const live = sbStatus === 'live';

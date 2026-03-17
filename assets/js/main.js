@@ -1,5 +1,26 @@
 'use strict';
 
+// Core HTML-escaping helpers must exist before any legacy scripts run.
+// In some environments (e.g. CI + dynamic script loading), relying on runtime.js
+// to define these first can be brittle.
+if (typeof globalThis.esc !== 'function') {
+  globalThis.esc = function esc(s) {
+    if (!s) return '';
+    return String(s).replace(/[&<>"']/g, m => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    })[m]);
+  };
+}
+if (typeof globalThis.escAttr !== 'function') {
+  globalThis.escAttr = function escAttr(s) {
+    return globalThis.esc(String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+  };
+}
+
 const APP_SCRIPT_ORDER = [
   'assets/js/state/app-state.js',
   'assets/js/domain/players.js',

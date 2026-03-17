@@ -5,6 +5,7 @@
   "description": "Browser smoke-тесты для статического приложения King of the Court.",
   "scripts": {
     "validate:static": "node scripts/validate-static.mjs",
+    "dev:serve": "http-server . -p 8000 -c-1",
     "test:smoke": "playwright test",
     "test:smoke:headed": "playwright test --headed",
     "test:smoke:debug": "playwright test --debug"

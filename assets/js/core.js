@@ -486,15 +486,12 @@ function _reRenderSlots() {
   }
 }
 
-function _slotHtml(slot, idx, playerPool, allDb, allSelectedIds) {
+function _slotHtml(slot, idx, playerPool, allMap, allSelectedIds) {
   const MEDALS    = { 1: '🥇', 2: '🥈', 3: '🥉' };
   const medal     = MEDALS[slot.place] || ('#' + slot.place);
   const canAdd    = slot.playerIds.length < 2;
   const available = playerPool.filter(p => !allSelectedIds.includes(p.id));
   const isCustom  = _resState.preset === 'custom';
-
-  // Use allDb as fallback for badge name lookup (player might not be in pool)
-  const allMap = _buildPlayerMap();
 
   const badges = slot.playerIds.map(id => {
     const p = allMap.get(id);

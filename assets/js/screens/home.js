@@ -379,7 +379,7 @@ function renderHome() {
       <div class="plr-av">${av3}</div>
     </div>
     <div class="plr-banner-body">
-      <div class="plr-banner-title">👤 БАЗА <span>ИГРОКОВ</span></div>
+      <div class="plr-banner-title">👤 РЕЙТИНГ <span>ЛЮТОСТИ</span></div>
       <div class="plr-banner-sub">Управляй составом · История · Статистика</div>
       <div class="plr-banner-pill">
         🏋️ ${men} муж &nbsp;·&nbsp; 👩 ${women} жен &nbsp;·&nbsp; Всего ${total}

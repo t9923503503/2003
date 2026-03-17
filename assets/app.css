@@ -1332,8 +1332,8 @@ button.player-tap:active{opacity:.6}
 .home-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 14px;
   border-radius:99px;background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.25);
   color:var(--gold);font-size:12px;font-weight:600;margin-bottom:14px}
-.home-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(48px,12vw,92px);
-  line-height:.88;letter-spacing:3px;color:#fff;margin-bottom:10px;
+.home-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(38px,8.5vw,60px);
+  line-height:.92;letter-spacing:2px;color:#fff;margin-bottom:10px;
   text-transform:uppercase;word-break:break-word;
   text-shadow:0 4px 24px rgba(255,215,0,.25),0 2px 0 rgba(0,0,0,.35);
   -webkit-text-stroke:1px rgba(255,215,0,.15)}

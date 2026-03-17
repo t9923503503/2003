@@ -147,5 +147,134 @@ function renderPlayers() {
 
   <!-- List -->
   <div class="plr-list">${itemsHtml}</div>
+
+  <!-- Export section — roster access only -->
+  ${rosterUnlocked ? `
+  <div style="margin-top:20px;padding:14px 16px;background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.2);border-radius:10px;">
+    <div style="font-family:var(--font-b,sans-serif);font-size:11px;font-weight:700;color:#ffd700;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;">📤 Публикация рейтинга</div>
+    <div style="font-size:12px;color:var(--sub,#8888aa);line-height:1.55;margin-bottom:12px;">Скачайте JSON-файлы и сделайте <code style="background:rgba(255,255,255,.08);padding:1px 5px;border-radius:3px">git commit data/</code> в GitHub.<br>Только владелец репозитория может изменить опубликованные данные.</div>
+    <button onclick="exportPublicData()" style="width:100%;padding:10px 14px;background:#ffd700;color:#0d0d1a;font-family:var(--font-b,sans-serif);font-weight:700;font-size:13px;letter-spacing:.5px;border:none;border-radius:7px;cursor:pointer;">⬇️ Скачать data/leaderboard.json + data/history.json</button>
+  </div>` : ''}
 </div>`;
+}
+
+// ── Export public data to GitHub ─────────────────────────────────────────────
+// Generates data/leaderboard.json + data/history.json and triggers download.
+// Admin then does: git add data/ && git commit -m "Update ratings" && git push
+// Only the GitHub repo owner (push access) can actually publish the data.
+function exportPublicData() {
+  if (hasRosterPassword() && !rosterUnlocked) {
+    showToast('🔒 Сначала разблокируйте ростер', 'warn');
+    return;
+  }
+
+  // Fresh recalc so exported numbers are up-to-date
+  recalcAllPlayerStats(/*silent*/ true);
+  const db  = loadPlayerDB();
+  const now = new Date().toISOString();
+
+  // ── leaderboard.json ────────────────────────────────────
+  const makeRow = (p, rField, tField) => ({
+    name:        p.name,
+    gender:      p.gender,
+    rating:      p[rField]  || 0,
+    tournaments: p[tField]  || 0,
+    wins:        p.wins     || 0,
+    last_seen:   p.lastSeen || '',
+  });
+
+  const leaderboard = {
+    _note:   'Сгенерировано приложением. git commit + push data/ для публикации.',
+    updated: now,
+    M:   db.filter(p => p.gender === 'M' && (p.ratingM   || 0) > 0)
+           .sort((a, b) => (b.ratingM   || 0) - (a.ratingM   || 0))
+           .map(p => makeRow(p, 'ratingM',   'tournamentsM')),
+    W:   db.filter(p => p.gender === 'W' && (p.ratingW   || 0) > 0)
+           .sort((a, b) => (b.ratingW   || 0) - (a.ratingW   || 0))
+           .map(p => makeRow(p, 'ratingW',   'tournamentsW')),
+    Mix: db.filter(p =>                      (p.ratingMix || 0) > 0)
+           .sort((a, b) => (b.ratingMix || 0) - (a.ratingMix || 0))
+           .map(p => makeRow(p, 'ratingMix', 'tournamentsMix')),
+  };
+
+  // ── history.json ────────────────────────────────────────
+  const pMap = new Map();
+  db.forEach(p => pMap.set(p.id, p));
+
+  const allTournaments = [];
+
+  // New system: kotc3_tournaments (status=finished, structured winners with playerIds)
+  getTournaments()
+    .filter(t => t.status === 'finished')
+    .forEach(t => {
+      const top3 = [];
+      if (Array.isArray(t.winners)) {
+        t.winners
+          .filter(w => w && typeof w === 'object' && Array.isArray(w.playerIds) && w.playerIds.length)
+          .sort((a, b) => (a.place || 99) - (b.place || 99))
+          .slice(0, 3)
+          .forEach(slot => {
+            const p = pMap.get(slot.playerIds[0]);
+            if (p) top3.push({
+              name:       p.name,
+              gender:     p.gender,
+              game_pts:   slot.points || 0,
+              rating_pts: calculateRanking(slot.place || 1),
+            });
+          });
+      }
+      allTournaments.push({
+        id: String(t.id), name: t.name || '', date: t.date || '',
+        format: t.format || '', division: t.division || '', top3,
+      });
+    });
+
+  // Old system: kotc3_history (King of the Court live-game snapshots)
+  let kotcHistory = [];
+  try { kotcHistory = JSON.parse(localStorage.getItem('kotc3_history') || '[]'); } catch(e) {}
+  kotcHistory.forEach(snap => {
+    if (!Array.isArray(snap.players) || !snap.players.length) return;
+    allTournaments.push({
+      id:       String(snap.id || ''),
+      name:     snap.name     || '',
+      date:     snap.date     || '',
+      format:   snap.format   || 'King of the Court',
+      division: snap.division || '',
+      top3: snap.players.slice(0, 3).map((p, i) => ({
+        name:       p.name   || '',
+        gender:     p.gender || 'M',
+        game_pts:   p.totalPts || 0,
+        rating_pts: calculateRanking(i + 1),
+      })),
+    });
+  });
+
+  // Newest first
+  allTournaments.sort((a, b) => (b.date || '') > (a.date || '') ? 1 : -1);
+
+  const historyData = {
+    _note:       'Сгенерировано приложением. git commit + push data/ для публикации.',
+    updated:     now,
+    tournaments: allTournaments,
+  };
+
+  // Trigger downloads (slight delay between them for browser compatibility)
+  _downloadJson(leaderboard, 'leaderboard.json');
+  setTimeout(() => _downloadJson(historyData, 'history.json'), 350);
+
+  const total = leaderboard.M.length + leaderboard.W.length + leaderboard.Mix.length;
+  showToast(
+    `⬇️ Скачаны leaderboard.json (${total} игр.) и history.json (${allTournaments.length} турн.) — сделайте git commit data/`,
+    'success'
+  );
+}
+
+function _downloadJson(data, filename) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement('a'), { href: url, download: filename });
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
