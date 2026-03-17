@@ -3,8 +3,8 @@
 // ════════════════════════════════════════════════════════════
 // 2. CORE MATH
 // ════════════════════════════════════════════════════════════
-function partnerW(mi, ri){ return (mi + ri) % ppc; }
-function partnerM(wi, ri){ return ((wi - ri) % ppc + ppc) % ppc; }
+function partnerW(mi, ri){ return fixedPairs ? mi : (mi + ri) % ppc; }
+function partnerM(wi, ri){ return fixedPairs ? wi : ((wi - ri) % ppc + ppc) % ppc; }
 
 function manRounds(ci, mi) {
   return Array.from({length:ppc}, (_,ri) => scores[ci]?.[mi]?.[ri] ?? null);
@@ -164,7 +164,7 @@ function getAllRoundsForPlayer(p) {
 function saveState() {
   try {
     localStorage.setItem('kotc_version',     '1.1');
-    localStorage.setItem('kotc3_cfg',        JSON.stringify({ ppc, nc }));
+    localStorage.setItem('kotc3_cfg',        JSON.stringify({ ppc, nc, fixedPairs }));
     localStorage.setItem('kotc3_scores',     JSON.stringify(scores));
     localStorage.setItem('kotc3_roster',     JSON.stringify(ALL_COURTS.map(c=>({men:[...c.men],women:[...c.women]}))));
     localStorage.setItem('kotc3_divscores',  JSON.stringify(divScores));
@@ -188,6 +188,7 @@ function loadState() {
       const p = JSON.parse(cfg);
       if ([4,5].includes(+p.ppc))           { ppc = +p.ppc; _ppc = ppc; }
       if ([1,2,3,4].includes(+p.nc))        { nc  = +p.nc;  _nc  = nc;  }
+      if (typeof p.fixedPairs === 'boolean') fixedPairs = p.fixedPairs;
     }
     const r = localStorage.getItem('kotc3_roster');
     if (r) {
