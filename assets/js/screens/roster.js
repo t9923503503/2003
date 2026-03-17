@@ -1,5 +1,23 @@
 'use strict';
 
+function toggleFixedPairs() {
+  fixedPairs = !fixedPairs;
+  saveState();
+  // Re-render courts to update pair display
+  for (let ci = 0; ci < nc; ci++) {
+    const s = document.getElementById(`screen-${ci}`);
+    if (s) s.innerHTML = renderCourt(ci);
+  }
+  updateDivisions();
+  // Update toggle button label without full rebuild
+  document.querySelectorAll('.fixed-pairs-toggle').forEach(el => {
+    el.textContent = fixedPairs ? '🔗 Фиксированные' : '🔄 Ротация';
+    el.classList.toggle('on', fixedPairs);
+  });
+  saveState();
+  showToast(fixedPairs ? '🔗 Пары зафиксированы — напарники не меняются' : '🔄 Ротация пар включена');
+}
+
 function toggleSolar() {
   const on = document.body.classList.toggle('solar');
   localStorage.setItem('kotc3_solar', on ? '1' : '0');
@@ -190,6 +208,12 @@ function renderRoster() {
     </div>
     <div class="sc-info" id="sc-info">
       ${_nc} корт(а) × ${_ppc} = <strong>${_nc*_ppc}м + ${_nc*_ppc}ж</strong>
+    </div>
+    <div class="sc-row">
+      <span class="sc-lbl">Пары:</span>
+      <button class="seg-btn fixed-pairs-toggle${fixedPairs?' on':''}" onclick="toggleFixedPairs()">
+        ${fixedPairs ? '🔗 Фиксированные' : '🔄 Ротация'}
+      </button>
     </div>
     <div class="sc-btns">
       <button class="btn-apply" onclick="applySettings()">✅ Применить</button>

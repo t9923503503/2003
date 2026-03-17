@@ -6,6 +6,7 @@
 // nc   = number of active courts (1..4)
 let ppc = 5;
 let nc  = 3;
+let fixedPairs = false;  // режим фиксированных пар — напарник не меняется
 const courtRound = [0, 0, 0, 0]; // текущий отображаемый раунд для каждого корта
 const divRoundState = { hard:0, advance:0, medium:0, lite:0 }; // текущий раунд дивизиона
 // Индекс таймера для каждого дивизиона (slots 4-7)
