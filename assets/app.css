@@ -1297,7 +1297,7 @@ button.player-tap:active{opacity:.6}
   box-shadow:0 4px 14px rgba(200,80,0,.35);
   color:#ffcc88;
 }
-.timer-btn-start.timer-btn-continue{font-size:7px;padding:3px 0;letter-spacing:0}
+.timer-btn-start.timer-btn-continue{font-size:11px;padding:7px 0;letter-spacing:0}
 .timer-btn-reset{
   background:var(--card);
   border:1px solid #3a3a5e;
