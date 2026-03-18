@@ -553,7 +553,7 @@ function buildScreens() {
   }
 
   // Named screens
-  const named = ['home','players','svod','hard','advance','medium','lite','stats','rating','roster'];
+  const named = ['home','players','svod','hard','advance','medium','lite','stats','rating','roster','ipt'];
   named.forEach(id => {
     const s = document.createElement('div');
     s.className = 'screen'; s.id = `screen-${id}`;
@@ -641,6 +641,7 @@ async function _switchTabInner(id) {
     screen.innerHTML = renderRoster();
   }
   if (id === 'stats')  screen.innerHTML = renderStats();
+  if (id === 'ipt')    screen.innerHTML = renderIPT();
   if (id === 'rating') screen.innerHTML = renderRating();
   if (id === 'hard' || id === 'advance' || id === 'medium' || id === 'lite') {
     if (!hasRound5Score()) {

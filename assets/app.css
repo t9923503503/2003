@@ -2439,3 +2439,108 @@ button.player-tap:active{opacity:.6}
   background:linear-gradient(180deg,var(--gold),rgba(255,215,0,.3));transition:height .2s ease}
 .pcard-hist-bar.rest{background:rgba(255,255,255,.08)}
 .pcard-hist-lbl{text-align:center;font-size:8px;color:var(--muted);margin-top:2px}
+
+/* ═══════════════════════════════════════════════════════════
+   IPT MIXED SCREEN
+═══════════════════════════════════════════════════════════ */
+.ipt-wrap { padding: 0 0 80px; max-width: 660px; margin: 0 auto; }
+.ipt-empty { text-align:center; padding: 60px 20px; color: var(--muted); line-height: 2; }
+
+/* Header */
+.ipt-header { padding: 14px 16px 10px; border-bottom: 1px solid #2a2a44; }
+.ipt-btn-back { background: none; border: 1px solid #3a3a54; color: var(--muted);
+  border-radius: 7px; padding: 4px 12px; font-size: 12px; cursor: pointer; margin-bottom: 8px; }
+.ipt-btn-back:hover { color: var(--text); }
+.ipt-title-row { display: flex; align-items: center; gap: 10px; }
+.ipt-title { font-family: 'Bebas Neue', sans-serif; font-size: 22px; color: var(--gold); letter-spacing: 1px; }
+.ipt-status-done { background: rgba(34,197,94,.15); color: #22c55e;
+  border: 1px solid rgba(34,197,94,.3); border-radius: 6px; padding: 2px 10px;
+  font-size: 11px; font-weight: 700; letter-spacing: .5px; }
+.ipt-trnname { font-family: 'Barlow Condensed', sans-serif; font-size: 17px; font-weight: 700;
+  color: var(--text); margin: 4px 0 2px; }
+.ipt-meta { font-size: 12px; color: var(--muted); }
+
+/* Round navigation */
+.ipt-round-nav { display: flex; gap: 6px; padding: 10px 16px 6px; overflow-x: auto; }
+.ipt-rnd-btn { min-width: 54px; height: 52px; border-radius: 8px; border: 2px solid #3a3a54;
+  background: var(--dark3); color: var(--muted); cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  transition: all .18s; }
+.ipt-rnd-btn .rn-num { font-family: 'Bebas Neue', sans-serif; font-size: 20px; line-height: 1; }
+.ipt-rnd-btn .rn-lbl { font-size: 9px; letter-spacing: .5px; text-transform: uppercase; }
+.ipt-rnd-btn.active { border-color: var(--gold); color: var(--gold);
+  background: rgba(255,215,0,.08); box-shadow: 0 0 8px rgba(255,215,0,.2); }
+.ipt-rnd-btn.done { border-color: #22c55e; color: #22c55e; background: rgba(34,197,94,.06); }
+.ipt-rnd-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+/* Court card */
+.ipt-courts-wrap { padding: 8px 12px; display: flex; flex-direction: column; gap: 14px; }
+.ipt-court { border-radius: 12px; border: 2px solid var(--ipt-c, #FFD700);
+  background: linear-gradient(135deg, rgba(255,215,0,.05), transparent);
+  overflow: hidden; }
+.ipt-court-done { border-color: #22c55e !important;
+  background: linear-gradient(135deg, rgba(34,197,94,.06), transparent) !important; }
+.ipt-court-wait { opacity: .6; filter: grayscale(.4); }
+.ipt-court-hdr { padding: 8px 14px 6px; display: flex; align-items: center; gap: 8px;
+  border-bottom: 1px solid rgba(255,255,255,.06); }
+.ipt-court-lbl { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 700;
+  letter-spacing: .5px; color: var(--ipt-c, var(--gold)); }
+.ipt-court-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 5px;
+  background: rgba(34,197,94,.15); color: #22c55e; border: 1px solid rgba(34,197,94,.3); }
+.ipt-court-badge.wait { background: rgba(251,191,36,.1); color: #fbbf24; border-color: rgba(251,191,36,.3); }
+
+/* Matchup layout */
+.ipt-matchup { display: flex; align-items: center; padding: 12px 14px; gap: 8px; }
+.ipt-team { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 8px 4px; border-radius: 8px; transition: background .2s; }
+.ipt-team-win { background: rgba(34,197,94,.08); }
+.ipt-team-names { font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 700;
+  color: var(--text); text-align: center; line-height: 1.3; }
+.ipt-amp { color: var(--muted); font-size: 12px; margin: 0 3px; }
+.ipt-score-row { display: flex; align-items: center; gap: 6px; }
+.ipt-score { font-family: 'Bebas Neue', sans-serif; font-size: 40px; line-height: 1;
+  min-width: 54px; text-align: center; color: var(--text);
+  transition: color .15s; }
+.ipt-score.win  { color: #22c55e; }
+.ipt-score.lose { color: var(--muted); }
+.ipt-score-btn { width: 44px; height: 44px; border-radius: 8px; border: none;
+  font-size: 20px; font-weight: 700; cursor: pointer; transition: all .15s; }
+.ipt-score-btn:disabled { opacity: .3; cursor: not-allowed; }
+.ipt-minus { background: rgba(239,68,68,.15); color: var(--minus); }
+.ipt-minus:not(:disabled):active { background: rgba(239,68,68,.3); }
+.ipt-plus  { background: rgba(34,197,94,.15); color: var(--plus); }
+.ipt-plus:not(:disabled):active  { background: rgba(34,197,94,.3); }
+.ipt-vs { font-family: 'Bebas Neue', sans-serif; font-size: 16px; color: var(--muted);
+  flex-shrink: 0; }
+
+/* Standings */
+.ipt-standings { margin: 6px 12px 0; border-radius: 10px; border: 1px solid #2a2a44;
+  overflow: hidden; }
+.ipt-standings-ttl { padding: 8px 14px; font-family: 'Barlow Condensed', sans-serif;
+  font-size: 14px; font-weight: 700; letter-spacing: .5px; color: var(--muted);
+  background: var(--dark3); border-bottom: 1px solid #2a2a44; }
+.ipt-standings-tbl { width: 100%; border-collapse: collapse; }
+.ipt-standings-tbl th { padding: 6px 10px; font-size: 11px; color: var(--muted);
+  text-align: center; background: var(--dark3); border-bottom: 1px solid #2a2a44; }
+.ipt-standings-tbl th:nth-child(2) { text-align: left; }
+.ipt-standings-tbl td { padding: 8px 10px; font-size: 14px; text-align: center;
+  border-bottom: 1px solid #1e1e36; }
+.ipt-standings-tbl td:nth-child(2) { text-align: left; font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700; font-size: 15px; }
+.ipt-standings-tbl tr.ipt-top3 td { background: rgba(255,215,0,.03); }
+.ipt-st-diff.pos { color: #22c55e; font-weight: 700; }
+.ipt-st-diff.neg { color: var(--minus); }
+.ipt-rank-num { font-family: 'Bebas Neue', sans-serif; font-size: 16px; color: var(--muted); }
+
+/* Action buttons */
+.ipt-actions { display: flex; gap: 10px; padding: 14px 12px; flex-wrap: wrap; }
+.ipt-btn-next { flex: 1; padding: 13px; border-radius: 10px; border: none;
+  background: linear-gradient(135deg, #4DA8DA, #2e86c1);
+  color: #fff; font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 700;
+  letter-spacing: .5px; cursor: pointer; transition: opacity .2s; }
+.ipt-btn-next:hover { opacity: .9; }
+.ipt-btn-finish { flex: 1; padding: 13px; border-radius: 10px; border: none;
+  background: linear-gradient(135deg, var(--gold), #e6b800);
+  color: #000; font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 900;
+  letter-spacing: .5px; cursor: pointer; transition: opacity .2s; }
+.ipt-btn-finish:hover { opacity: .9; }

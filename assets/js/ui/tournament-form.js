@@ -36,6 +36,17 @@ function submitTournamentForm() {
     prize:    document.getElementById('trnf-prize-toggle')?.checked ? g('trnf-prize') : '',
     capacity: parseInt(document.getElementById('trnf-cap')?.value || '0', 10),
   };
+  // IPT-specific settings
+  if (formData.format === 'IPT Mixed') {
+    const limitRaw = document.getElementById('trnf-ipt-limit')?.value || '21';
+    const limitNum = Math.max(1, parseInt(limitRaw, 10) || 0);
+    formData.ipt = {
+      pointLimit: limitNum || 21,
+      finishType: document.getElementById('trnf-ipt-finish')?.value || 'hard',
+    };
+    // IPT always needs exactly 8 players — set capacity if too low
+    if (formData.capacity < 8) formData.capacity = 8;
+  }
 
   // Field → input id map (used for highlighting errors)
   const idMap = {
@@ -130,4 +141,18 @@ function cloneTrn(id) {
 /** Finish: open results form (user records winners, then saves + marks finished) */
 function finishTrn(id) {
   openResultsForm(id);
+}
+
+// ── IPT form toggle ──────────────────────────────────────────
+function _trnfFormatChange(val) {
+  const show = val === 'IPT Mixed';
+  ['trnf-ipt-opts', 'trnf-ipt-type'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = show ? '' : 'none';
+  });
+  // Auto-set capacity to 8 for IPT
+  if (show) {
+    const cap = document.getElementById('trnf-cap');
+    if (cap && parseInt(cap.value, 10) < 8) cap.value = 8;
+  }
 }

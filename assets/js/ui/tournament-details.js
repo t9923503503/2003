@@ -88,10 +88,14 @@ function openTrnDetails(trnId) {
     </div>
     <div class="td-footer">
       ${!isFinished
-        ? `<button class="td-btn-reg ${isFull?'wait':''}" onclick="document.getElementById('td-modal')?.remove();openRegistrationModal('${escAttr(trn.id)}')">
-            ${isFull ? '📋 В лист ожидания' : '⚡ Записаться'}
-          </button>`
-        : ''}
+        ? trn.format === 'IPT Mixed'
+          ? `<button class="td-btn-reg" onclick="openIPT('${escAttr(trn.id)}')">🏐 Начать матч IPT</button>`
+          : `<button class="td-btn-reg ${isFull?'wait':''}" onclick="document.getElementById('td-modal')?.remove();openRegistrationModal('${escAttr(trn.id)}')">
+              ${isFull ? '📋 В лист ожидания' : '⚡ Записаться'}
+            </button>`
+        : trn.format === 'IPT Mixed' && trn.ipt?.rounds
+          ? `<button class="td-btn-reg" onclick="openIPT('${escAttr(trn.id)}')">📊 Просмотр IPT</button>`
+          : ''}
       <button class="td-btn-close" onclick="document.getElementById('td-modal')?.remove()">Закрыть</button>
     </div>
   </div>`;

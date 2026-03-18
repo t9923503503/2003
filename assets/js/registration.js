@@ -663,8 +663,8 @@ function _rosterTrnHtml() {
         </div>
         <div>
           <label class="trn-form-label">Формат</label>
-          <select class="trn-form-sel" id="trnf-format">
-            ${['King of the Court','Царь горы','Случайные связки','Double Trouble','Round Robin','Олимпийская система','Другой'].map(f =>
+          <select class="trn-form-sel" id="trnf-format" onchange="_trnfFormatChange(this.value)">
+            ${['King of the Court','IPT Mixed','Царь горы','Случайные связки','Double Trouble','Round Robin','Олимпийская система','Другой'].map(f =>
               `<option value="${f}" ${(editTrn?.format || 'King of the Court') === f ? 'selected' : ''}>${f}</option>`
             ).join('')}
           </select>
@@ -689,6 +689,18 @@ function _rosterTrnHtml() {
           <label class="trn-form-label">Мест (ёмкость)</label>
           <input class="trn-form-inp" id="trnf-cap" type="number" min="4" max="200"
             value="${editTrn?.capacity || 24}">
+        </div>
+        <div id="trnf-ipt-opts" style="display:${(editTrn?.format || '') === 'IPT Mixed' ? '' : 'none'}">
+          <label class="trn-form-label">⚡ Лимит очков (IPT)</label>
+          <input class="trn-form-inp" id="trnf-ipt-limit" type="number" min="1" max="999"
+            value="${Number.isFinite(+editTrn?.ipt?.pointLimit) ? +editTrn.ipt.pointLimit : 21}">
+        </div>
+        <div id="trnf-ipt-type" style="display:${(editTrn?.format || '') === 'IPT Mixed' ? '' : 'none'}">
+          <label class="trn-form-label">🏁 Тип завершения (IPT)</label>
+          <select class="trn-form-sel" id="trnf-ipt-finish">
+            <option value="hard" ${(editTrn?.ipt?.finishType || 'hard') === 'hard' ? 'selected' : ''}>Жёсткий лимит</option>
+            <option value="balance" ${(editTrn?.ipt?.finishType || '') === 'balance' ? 'selected' : ''}>До разрыва ±2</option>
+          </select>
         </div>
         <div class="trn-form-full">
           <label class="trn-form-label trn-form-toggle-label">

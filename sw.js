@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'volley-static-v8';
+const CACHE_VERSION = 'volley-static-v9';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -19,6 +19,8 @@ const CORE_ASSETS = [
   './assets/js/ui/tournament-form.js',
   './assets/js/ui/participants-modal.js',
   './assets/js/ui/tournament-details.js',
+  './assets/js/ui/ipt-format.js',
+  './assets/js/screens/ipt.js',
   './assets/js/registration.js',
   './assets/js/screens/core.js',
   './assets/js/screens/roster.js',

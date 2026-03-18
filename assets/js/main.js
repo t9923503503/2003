@@ -33,6 +33,8 @@ const APP_SCRIPT_ORDER = [
   'assets/js/ui/tournament-form.js',
   'assets/js/ui/participants-modal.js',
   'assets/js/ui/tournament-details.js',
+  'assets/js/ui/ipt-format.js',
+  'assets/js/screens/ipt.js',
   'assets/js/registration.js',
   'assets/js/screens/core.js',
   'assets/js/screens/roster.js',
