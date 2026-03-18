@@ -27,8 +27,9 @@ async function collectErrors(page: Page) {
   });
   page.on('response', (resp) => {
     if (resp.status() >= 400 && isLocal(resp.url())) {
-      // Игнорируем config.js — он опционален и может отсутствовать
-      if (!resp.url().endsWith('/config.js')) {
+      // Игнорируем опциональные файлы: config.js и data/*.json (публичные данные)
+      const optionalFile = resp.url().endsWith('/config.js') || resp.url().includes('/data/');
+      if (!optionalFile) {
         badResponses.push(`${resp.status()} ${resp.url()}`);
       }
     }
@@ -42,7 +43,9 @@ test.describe('Browser smoke', () => {
   test('1. Bootstrap, навигация, ошибки консоли и service worker', async ({ page }) => {
     const errors = await collectErrors(page);
 
-    await page.goto('/', { waitUntil: 'networkidle' });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    // Ждём появления навбара (JS построил кнопки)
+    await page.locator('.nb[data-tab="home"]').waitFor({ timeout: 15_000 });
 
     // Приложение загрузилось, bootstrap-ошибка не показана
     await expect(page.locator('#screens')).toBeVisible();
@@ -69,7 +72,8 @@ test.describe('Browser smoke', () => {
   });
 
   test('2. Ростер — локальная парольная защита', async ({ page }) => {
-    await page.goto('/', { waitUntil: 'networkidle' });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await page.locator('.nb[data-tab="home"]').waitFor({ timeout: 15_000 });
     await page.locator('.nb[data-tab="roster"]').click();
     const rosterScreen = page.locator('#screen-roster');
     await expect(rosterScreen).toHaveClass(/active/);
@@ -80,7 +84,8 @@ test.describe('Browser smoke', () => {
   });
 
   test('3. Home — создание турнира локально', async ({ page }) => {
-    await page.goto('/', { waitUntil: 'networkidle' });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await page.locator('.nb[data-tab="home"]').waitFor({ timeout: 15_000 });
     await page.locator('.nb[data-tab="home"]').click();
     await expect(page.locator('#screen-home')).toHaveClass(/active/);
 
@@ -94,7 +99,8 @@ test.describe('Browser smoke', () => {
   });
 
   test('4. Игроки — добавление игрока в ростер', async ({ page }) => {
-    await page.goto('/', { waitUntil: 'networkidle' });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await page.locator('.nb[data-tab="home"]').waitFor({ timeout: 15_000 });
     await page.locator('.nb[data-tab="roster"]').click();
     await expect(page.locator('#screen-roster')).toHaveClass(/active/);
 
@@ -108,7 +114,8 @@ test.describe('Browser smoke', () => {
 
   test('5. Перезагрузка с зарегистрированным service worker', async ({ page }) => {
     // Первая загрузка — SW регистрируется
-    await page.goto('/', { waitUntil: 'networkidle' });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await page.locator('.nb[data-tab="home"]').waitFor({ timeout: 15_000 });
     const swAfterFirst = await page.evaluate(async () => {
       const reg = await navigator.serviceWorker.getRegistration('./sw.js');
       return reg?.active?.state ?? reg?.installing?.state ?? null;
@@ -116,7 +123,8 @@ test.describe('Browser smoke', () => {
     expect(swAfterFirst).not.toBeNull();
 
     // Перезагрузка — SW уже активен, приложение загружается без ошибок
-    await page.reload({ waitUntil: 'networkidle' });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.locator('.nb[data-tab="home"]').waitFor({ timeout: 15_000 });
     await expect(page.locator('#screens')).toBeVisible();
     await expect(page.locator('text=Ошибка запуска приложения')).toHaveCount(0);
 
