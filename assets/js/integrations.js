@@ -9,10 +9,14 @@ let sbClient  = null;    // Supabase client instance
 let sbStatus  = 'idle';  // idle | connecting | live | offline
 let sbIsApplying = false; // prevent echo loop when we apply remote state
 let sbSaveTimer  = null;  // debounce remote saves
-let sbPollTimer  = null;  // polling interval
+let sbPollTimer  = null;  // polling interval fallback
 let sbIsPolling  = false;
 let sbLastRemoteUpdatedAt = '';
-const SB_POLL_MS = 1500;
+let sbRealtimeChannel = null;  // Supabase Broadcast channel
+let sbRealtimeFailed  = false; // true when Realtime is unavailable → use polling
+const SB_POLL_MS      = 1500;
+const SB_POLL_MAX_MS  = 30000; // max backoff for polling fallback
+let   sbPollCurrentMs = SB_POLL_MS;
 const SB_SYNC_SQL = String.raw`-- ============================================================
 -- SECURE ROOM SYNC FOR KOTC
 -- Комната защищена secret'ом. Прямой SELECT/UPDATE по таблице закрыт.
@@ -250,7 +254,7 @@ function sbLoadConfig() {
   try {
     const c = localStorage.getItem('kotc3_sb');
     if (c) sbConfig = { ...sbConfig, ...JSON.parse(c) };
-  } catch(e) {}
+  } catch(e) { console.warn('[sbLoadConfig] Config parse error:', e); }
   sbConfig.roomCode = sbNormalizeRoomCode(sbConfig.roomCode);
   sbConfig.roomSecret = (sbConfig.roomSecret || '').trim();
 }
@@ -307,12 +311,61 @@ function sbStopPolling() {
   if (sbPollTimer) clearInterval(sbPollTimer);
   sbPollTimer = null;
   sbIsPolling = false;
+  sbPollCurrentMs = SB_POLL_MS;
 }
-function sbStartPolling() {
+
+function sbStartPollingFallback() {
   sbStopPolling();
-  sbPollTimer = setInterval(() => { sbPollOnce(); }, SB_POLL_MS);
+  sbPollTimer = setInterval(() => { sbPollOnce(); }, sbPollCurrentMs);
 }
-window.addEventListener('beforeunload', () => { sbStopPolling(); clearTimeout(sbSaveTimer); });
+
+// ── Supabase Realtime Broadcast ──────────────────────────
+function sbStartRealtime() {
+  sbStopRealtime();
+  if (!sbClient || !sbConfig.roomCode) return;
+  try {
+    sbRealtimeChannel = sbClient
+      .channel('room:' + sbConfig.roomCode)
+      .on('broadcast', { event: 'state_updated' }, () => {
+        // Signal received — fetch actual state via secure RPC
+        sbPollOnce();
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          // Realtime is working — stop/slow polling as redundant safety net only
+          sbRealtimeFailed = false;
+          sbPollCurrentMs = 15000; // check every 15s as fallback only
+          sbStartPollingFallback();
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          // Realtime failed — fall back to faster polling
+          console.warn('[Realtime] Channel error, falling back to polling');
+          sbRealtimeFailed = true;
+          sbPollCurrentMs = SB_POLL_MS;
+          sbStartPollingFallback();
+        }
+      });
+  } catch (e) {
+    console.warn('[Realtime] Init error, falling back to polling:', e);
+    sbRealtimeFailed = true;
+    sbPollCurrentMs = SB_POLL_MS;
+    sbStartPollingFallback();
+  }
+}
+
+function sbStopRealtime() {
+  if (sbRealtimeChannel) {
+    try { sbClient?.removeChannel(sbRealtimeChannel); } catch(e) {}
+    sbRealtimeChannel = null;
+  }
+  sbRealtimeFailed = false;
+}
+
+function sbStartPolling() {
+  // Try Realtime first; it falls back to polling internally
+  sbStartRealtime();
+}
+
+window.addEventListener('beforeunload', () => { sbStopPolling(); sbStopRealtime(); clearTimeout(sbSaveTimer); });
 async function sbPollOnce() {
   if (!sbEnsureClient() || sbStatus !== 'live' || sbIsApplying || sbIsPolling) return;
   sbIsPolling = true;
@@ -454,6 +507,7 @@ async function sbRotateSecret() {
 }
 
 function sbDisconnect() {
+  sbStopRealtime();
   sbStopPolling();
   clearTimeout(sbSaveTimer);
   sbClient = null;
@@ -478,6 +532,11 @@ function sbPush() {
       if (error) throw error;
       if (!data?.ok) throw new Error(data?.message || data?.error || 'Ошибка записи комнаты');
       sbLastRemoteUpdatedAt = data.updated_at || sbLastRemoteUpdatedAt;
+      // Notify other devices via Broadcast (best-effort, no await)
+      if (sbRealtimeChannel) {
+        sbRealtimeChannel.send({ type: 'broadcast', event: 'state_updated', payload: {} })
+          .catch(() => {}); // non-critical
+      }
       // Flash top bar
       const bar = document.getElementById('sync-topbar');
       if (bar) { bar.style.display = 'block'; setTimeout(()=>{ bar.style.display='none'; }, 700); }
@@ -957,7 +1016,7 @@ function gshLoadConfig() {
   try {
     const c = localStorage.getItem('kotc3_gsh');
     if (c) gshConfig = { ...gshConfig, ...JSON.parse(c) };
-  } catch(e) {}
+  } catch(e) { console.warn('[gshLoadConfig] Config parse error:', e); }
 }
 
 function gshSaveConfig() {

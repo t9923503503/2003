@@ -92,6 +92,7 @@ function rdbAdd() {
   const inp = document.getElementById('rdb-add-inp');
   const name = (inp?.value || '').trim();
   if (!name) { showToast('⚠️ Введите фамилию'); return; }
+  if (name.length > 50) { showToast('⚠️ Фамилия не должна превышать 50 символов'); return; }
   if (addPlayerToDB(name, rosterDbTab)) {
     inp.value = ''; _refreshRdb();
     showToast('✅ ' + name + ' добавлен');
@@ -120,8 +121,9 @@ function rdbAdjPts(id, d) {
 }
 
 function _rdbBodyHtml() {
-  const db   = loadPlayerDB().filter(p => p.gender === rosterDbTab)
-                 .sort((a,b) => (b.totalPts||0) - (a.totalPts||0));
+  const allDb = loadPlayerDB();
+  const db    = allDb.filter(p => p.gender === rosterDbTab)
+                     .sort((a,b) => (b.totalPts||0) - (a.totalPts||0));
   const rankCls = i => i===0?'g':i===1?'s':i===2?'b':'';
   const medal   = i => i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1;
 
@@ -146,8 +148,8 @@ function _rdbBodyHtml() {
     </div>`).join('')
     : `<div class="rdb-empty">Нет игроков. Добавьте выше.</div>`;
 
-  const mCnt = loadPlayerDB().filter(p=>p.gender==='M').length;
-  const wCnt = loadPlayerDB().filter(p=>p.gender==='W').length;
+  const mCnt = allDb.filter(p=>p.gender==='M').length;
+  const wCnt = allDb.filter(p=>p.gender==='W').length;
 
   return `
     <div class="rdb-hdr">
@@ -687,22 +689,6 @@ function saveResults() {
   showToast(isFirstSave ? '🏆 Турнир завершён!' : '✏️ Результаты обновлены!', 'success');
 }
 
-/** Recalculate player stats from results slots and write to playerdb */
-function _syncWinnerStats(slots, date) {
-  const db = loadPlayerDB();
-  slots.forEach(slot => {
-    slot.playerIds.forEach(id => {
-      const p = db.find(p => p.id === id);
-      if (!p) return;
-      p.tournaments = (p.tournaments || 0) + 1;
-      p.totalPts    = (p.totalPts    || 0) + slot.points;
-      p.wins        = (p.wins        || 0) + (slot.place === 1 ? 1 : 0);
-      p.lastSeen    = date || new Date().toISOString().split('T')[0];
-    });
-  });
-  savePlayerDB(db);
-}
-
 /**
  * Recalculate ALL player stats from scratch by replaying every finished
  * tournament. Handles both kotc3_tournaments (new system) and kotc3_history
@@ -899,7 +885,7 @@ function _renderPtModal() {
       </div>
 
       <!-- Waitlist -->
-      ${wlist.length > 0 || true ? `
+      ${wlist.length > 0 ? `
       <div>
         <div class="pt-section-hdr">
           <span class="pt-section-ttl">📋 Лист ожидания</span>

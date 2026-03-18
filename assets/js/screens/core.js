@@ -171,7 +171,7 @@ function saveState() {
     localStorage.setItem('kotc3_divroster',  JSON.stringify(divRoster));
     localStorage.setItem('kotc3_meta',       JSON.stringify(tournamentMeta));
     localStorage.setItem('kotc3_eventlog',   JSON.stringify(tournamentHistory));
-  } catch(e){}
+  } catch(e){ console.error('[saveState] Failed to persist state:', e); }
   sbPush(); // синхронизировать с Supabase
 }
 
@@ -179,7 +179,8 @@ function loadState() {
   try {
     // Version migration: if old version or no version, clear scores to avoid corruption
     const ver = localStorage.getItem('kotc_version');
-    if (!ver || ver < '1.1') {
+    const verNum = ver ? ver.split('.').map(Number).reduce((a, v, i) => a + v * Math.pow(100, 2 - i), 0) : 0;
+    if (verNum < 101) {
       ['kotc3_scores','kotc3_divscores','kotc3_divroster'].forEach(k=>localStorage.removeItem(k));
       localStorage.setItem('kotc_version','1.1');
     }
@@ -220,8 +221,8 @@ function loadState() {
     if (mt) { try { tournamentMeta = JSON.parse(mt); } catch(e){} }
     if (dr) { const pd=JSON.parse(dr); if(pd) DIV_KEYS.forEach(k=>{if(pd[k]) divRoster[k]=pd[k];}); }
     const hs = localStorage.getItem('kotc3_eventlog');
-    if (hs) { try { tournamentHistory = JSON.parse(hs) || []; } catch(e){} }
-  } catch(e){}
+    if (hs) { try { tournamentHistory = JSON.parse(hs) || []; } catch(e){ console.error('[loadState] eventlog parse error:', e); } }
+  } catch(e){ console.error('[loadState] Failed to restore state:', e); }
 }
 
 // ── Finish & archive tournament ────────────────────────────

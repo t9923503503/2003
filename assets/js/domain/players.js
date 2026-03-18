@@ -207,7 +207,7 @@ function upsertPlayerInDB(player) {
 }
 function addPlayerToDB(name, gender) {
   name = name.trim();
-  if (!name) return false;
+  if (!name || name.length > 50) return false;
   const db = loadPlayerDB();
   if (db.find(p => p.name.toLowerCase() === name.toLowerCase() && p.gender === gender)) return false;
   db.push({ id: Date.now() + Math.random(), name, gender,

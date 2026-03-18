@@ -106,6 +106,7 @@ async function clearRoster() {
   }
   // 3. Очистить DOM-поля (если ростер уже отрисован)
   document.querySelectorAll('.rc-inp').forEach(inp => { inp.value = ''; });
+  saveState();
   showToast('🧹 Состав очищен — введите новые имена и нажмите Сохранить');
 }
 
