@@ -24,6 +24,8 @@ function recalcAllPlayerStats(silent = false) {
     p.tournaments = 0; p.totalPts = 0; p.wins = 0;
     p.ratingM = 0; p.ratingW = 0; p.ratingMix = 0;
     p.tournamentsM = 0; p.tournamentsW = 0; p.tournamentsMix = 0;
+    // IPT wallet
+    p.iptWins = 0; p.iptDiff = 0; p.iptPts = 0; p.iptMatches = 0;
   });
 
   // ── New system: kotc3_tournaments ────────────────────────
@@ -31,6 +33,43 @@ function recalcAllPlayerStats(silent = false) {
     .filter(t => t.status === 'finished' && Array.isArray(t.winners))
     .forEach(t => {
       const tType = t.ratingType || divisionToType(t.division);
+
+      // IPT Mixed: accumulate wallet stats from raw rounds (single source of truth)
+      if (t.format === 'IPT Mixed' && t.ipt?.rounds) {
+        const ipt = t.ipt;
+        const local = {};
+        const ensure = id => {
+          if (!local[id]) local[id] = { wins: 0, diff: 0, pts: 0, matches: 0 };
+        };
+        ipt.rounds.forEach(r => {
+          (r.courts || []).forEach(c => {
+            const team1 = c.team1 || [], team2 = c.team2 || [];
+            const s1 = Number(c.score1) || 0, s2 = Number(c.score2) || 0;
+            team1.forEach(ensure); team2.forEach(ensure);
+            if (s1 === 0 && s2 === 0) return;
+            const done = iptMatchFinished(c, ipt.pointLimit || 21, ipt.finishType || 'hard');
+            team1.forEach(id => {
+              local[id].pts += s1;
+              local[id].diff += (s1 - s2);
+              if (done) { local[id].matches += 1; if (s1 > s2) local[id].wins += 1; }
+            });
+            team2.forEach(id => {
+              local[id].pts += s2;
+              local[id].diff += (s2 - s1);
+              if (done) { local[id].matches += 1; if (s2 > s1) local[id].wins += 1; }
+            });
+          });
+        });
+        Object.entries(local).forEach(([id, s]) => {
+          const p = db.find(p => p.id === id);
+          if (!p) return;
+          p.iptWins    = (p.iptWins    || 0) + (s.wins    || 0);
+          p.iptDiff    = (p.iptDiff    || 0) + (s.diff    || 0);
+          p.iptPts     = (p.iptPts     || 0) + (s.pts     || 0);
+          p.iptMatches = (p.iptMatches || 0) + (s.matches || 0);
+        });
+      }
+
       t.winners.forEach(slot => {
         if (typeof slot !== 'object' || !Array.isArray(slot.playerIds)) return;
         const ratingPts = calculateRanking(slot.place);

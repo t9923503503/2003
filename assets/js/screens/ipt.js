@@ -23,7 +23,14 @@ function openIPT(trnId) {
     trn.ipt.pointLimit   = Number.isFinite(lim) && lim >= 1 ? lim : 21;
     trn.ipt.finishType   = trn.ipt.finishType  || 'hard';
     trn.ipt.currentRound = 0;
-    trn.ipt.rounds       = generateIPTRounds(trn.participants.slice(0, 8));
+    const p8 = trn.participants.slice(0, 8);
+    const dynamic = typeof tryGenerateIPTRoundsDynamic === 'function'
+      ? tryGenerateIPTRoundsDynamic(p8, trn.ipt.matchHistory)
+      : null;
+    trn.ipt.rounds = dynamic || generateIPTRounds(p8);
+    if (typeof buildIPTMatchHistory === 'function') {
+      trn.ipt.matchHistory = buildIPTMatchHistory(trn.ipt.rounds);
+    }
     if (trn.status !== 'finished') trn.status = 'active';
     saveTournaments(arr);
   }

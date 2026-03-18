@@ -5,6 +5,8 @@ const HOST = process.env.SMOKE_HOST || '127.0.0.1';
 
 const config: PlaywrightTestConfig = {
   testDir: './tests',
+  testIgnore: ['**/unit/**'],
+  testMatch: ['**/*.spec.{js,ts}'],
   timeout: 60_000,
   expect: {
     timeout: 10_000,

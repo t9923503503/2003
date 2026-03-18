@@ -49,6 +49,16 @@ function fromLocalPlayer(raw) {
 
   const lastSeen = raw.lastSeen || raw.last_seen || '';
 
+  // IPT stats (optional; computed via recalcAllPlayerStats)
+  const iptWins =
+    raw.iptWins != null ? raw.iptWins : 0;
+  const iptDiff =
+    raw.iptDiff != null ? raw.iptDiff : 0;
+  const iptPts =
+    raw.iptPts != null ? raw.iptPts : 0;
+  const iptMatches =
+    raw.iptMatches != null ? raw.iptMatches : 0;
+
   return {
     id,
     name,
@@ -65,6 +75,10 @@ function fromLocalPlayer(raw) {
     tournamentsW,
     tournamentsMix,
     lastSeen,
+    iptWins,
+    iptDiff,
+    iptPts,
+    iptMatches,
   };
 }
 
