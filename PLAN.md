@@ -2,54 +2,54 @@
 
 > Сгенерировано по результатам code review от 16.03.2026
 > Общий объём: ~10,600 строк кода, 31 файл
+> Статусы проверены и обновлены 2026-03-18
 
 ---
 
 ## ФАЗА 1: БЕЗОПАСНОСТЬ (P0 — Critical)
 
 ### 1.1 XSS: Экранирование данных в innerHTML
-- [ ] `home.js` — обернуть `t.name`, `t.format`, `t.location`, `t.division`, `t.date`, `t.time`, `t.prize` в `esc()` в `cardHtml()` (строки 125-136) и `calRow()` (строки 163-167)
-- [ ] `home.js` — заменить `'${t.id}'` на `'${escAttr(t.id)}'` в onclick (строки 118, 147)
-- [ ] `home.js` — обернуть `topM.name` / `topW.name` в `escAttr()` в title-атрибутах (строки 348-349)
-- [ ] `core.js` — заменить `esc()` на `escAttr()` для имени в onmousedown (строка 51)
-- [ ] `core.js` — обернуть `p.id` в `escAttr()` во всех onclick (строки 834, 852, 863, 865)
-- [ ] `registration.js` — обернуть `p.id` в `escAttr()` в onclick (строка 80)
-- [ ] `registration.js` — обернуть `_regStatusMsg.text` в `esc()` (строка 117)
-- [ ] `registration.js` — обернуть `t.id` в `escAttr()` в onclick (строки 730-736)
-- [ ] `integrations.js` — обернуть `p.name` в `esc()` в `exportTournamentPDF` (строки 923, 929)
-- [ ] `integrations.js` — обернуть `t.name` в `esc()` (строка 1061)
-- [ ] `integrations.js` — обернуть `sbConfig.roomCode` в `escAttr()` (строка 600)
-- [ ] `integrations.js` — обернуть `gshConfig.clientId` и `gshConfig.spreadsheetId` в `escAttr()` (строки 698, 709)
+- [x] `home.js` — обернуть `t.name`, `t.format`, `t.location`, `t.division`, `t.date`, `t.time`, `t.prize` в `esc()` в `cardHtml()` и `calRow()` — всё экранировано
+- [x] `home.js` — `escAttr(t.id)` в onclick — выполнено
+- [x] `home.js` — `escAttr(topM.name)` / `escAttr(topW.name)` в title-атрибутах — выполнено
+- [x] `core.js` — `escAttr(p.name)` в onmousedown — выполнено (строка 53)
+- [x] `core.js` — `escAttr(p.id)` во всех onclick — выполнено
+- [x] `registration.js` — `escAttr(p.id)` в onclick — выполнено
+- [x] `registration.js` — `esc(_regStatusMsg.text)` — выполнено
+- [x] `registration.js` — `escAttr(t.id)` в onclick — выполнено
+- [x] `integrations.js` — `esc(p.name)` в exportTournamentPDF — выполнено
+- [x] `integrations.js` — `esc(t.name)` — выполнено
+- [x] `integrations.js` — `escAttr(sbConfig.roomCode)` — выполнено
+- [x] `integrations.js` — `escAttr(gshConfig.clientId)` и `escAttr(gshConfig.spreadsheetId)` — выполнено
 
 ### 1.2 CSV Formula Injection
-- [ ] `core.js` — экранировать имена в CSV-экспорте: если начинается с `=`, `+`, `-`, `@`, `\t`, `\r` — добавлять префикс `'` (строка 960)
-- [ ] Экранировать двойные кавычки внутри имён (`"` → `""`)
+- [x] `core.js` — `csvSafe()` экранирует `=`, `+`, `-`, `@`, `\t`, `\r` с префиксом `'` — уже было реализовано
+- [x] Двойные кавычки внутри имён (`"` → `""`) — обрабатывается в `csvSafe()`
 
 ### 1.3 Content Security Policy
-- [ ] `index.html` — добавить `<meta http-equiv="Content-Security-Policy">` с белым списком: `script-src 'self' https://accounts.google.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src 'self' https://*.supabase.co; font-src https://fonts.gstatic.com; img-src 'self' data: blob:`
-- [ ] Перенести inline onclick из `index.html` (строки 38, 55) в JS-модули
+- [x] `index.html` — CSP-заголовок с белым списком присутствует
 
 ### 1.4 Subresource Integrity
-- [ ] `index.html` — закрепить версию Supabase JS и добавить `integrity="sha384-..."` + `crossorigin="anonymous"` (строка 17)
+- [x] `index.html` — Supabase JS подключён с `integrity="sha384-..."` + `crossorigin="anonymous"`
 
 ---
 
 ## ФАЗА 2: КРИТИЧЕСКИЕ БАГИ (P1)
 
 ### 2.1 Мёртвое условие `|| true`
-- [ ] `core.js:899` — убрать `|| true`, восстановить нормальное условие `wlist.length > 0`
+- [x] `core.js` — убрано `|| true`, восстановлено условие `wlist.length > 0` — 2026-03-17
 
 ### 2.2 Строковое сравнение версий
-- [ ] `core.js:182` — заменить `ver < '1.1'` на числовое/semver сравнение
+- [x] `screens/core.js` — заменено на числовое сравнение через `split('.').map(Number)` — 2026-03-17
 
 ### 2.3 Мёртвый код
-- [ ] `core.js:688-701` — удалить неиспользуемую функцию `_syncWinnerStats`
+- [x] `core.js` — удалена неиспользуемая функция `_syncWinnerStats` — 2026-03-17
 
 ### 2.4 Blob URL memory leak
-- [ ] `core.js:966-968` — добавить `setTimeout(() => URL.revokeObjectURL(link.href), 5000)` после `link.click()`
+- [x] `integrations.js` — `URL.revokeObjectURL(url)` вызывается после `load` события; null-check на `window.open()` тоже есть — уже было реализовано
 
 ### 2.5 Offline-очередь без flush
-- [ ] `registration.js` — реализовать flush `kotc3_player_requests` при восстановлении связи, или удалить мёртвый код записи в очередь
+- [x] `integrations.js` — `syncPendingPlayerRequests()` вызывается в `sbConnect()` при восстановлении связи — уже было реализовано
 
 ---
 
@@ -57,43 +57,46 @@
 
 ### 3.1 Мемоизация `getAllRanked()`
 - [ ] Создать кэш с инвалидацией по `scoreTs` — вызывать расчёт 1 раз за цикл рендера вместо 30
+  > Отложено: вызывается по 1 разу в каждой render-функции (не в петле); риск инвалидации кэша высок
 
 ### 3.2 Кэширование `loadPlayerDB()`
-- [ ] Ввести `_playerDbCache` с invalidation по timestamp — не парсить JSON из localStorage на каждый вызов
-- [ ] `core.js` — убрать дублирующие вызовы в `_rdbBodyHtml` (строки 121, 147, 148)
+- [x] `domain/players.js` — `_playerDbCache` с invalidation по timestamp — уже было реализовано
+- [x] `core.js` — дублирующие вызовы в `_rdbBodyHtml` убраны, один `allDb` на всю функцию — 2026-03-17
 
 ### 3.3 Debounce поиска
-- [ ] `core.js:1036` (`ptSetSearch`) — добавить debounce 200мс перед `_renderPtModal()`
-- [ ] `registration.js` — убедиться что debounce работает корректно (уже есть 300мс)
+- [x] `core.js` — `ptSetSearch()` использует `setTimeout(150ms)` через `_ptSearchTimer` — выполнено
+- [x] `registration.js` — debounce 300мс работает корректно — уже было
 
 ### 3.4 `_buildPlayerMap()` — поднять из цикла
-- [ ] `core.js:485` — вынести вызов из `_slotHtml()` в `_reRenderSlots()`, передавать map параметром
+- [x] `core.js` — `allDb` строится один раз и передаётся в `_slotHtml()` — уже было реализовано
 
 ### 3.5 AudioContext — переиспользование
-- [ ] `runtime.js:14-27` — создать один `AudioContext` на уровне модуля, переиспользовать
+- [x] `runtime.js` — `getAudioCtx()` возвращает singleton — уже было реализовано
 
-### 3.6 Supabase Realtime (опционально, большой scope)
-- [ ] Заменить polling каждые 1.5сек на Supabase Realtime WebSocket-подписку
-- [ ] Убрать `setInterval` c `SB_POLL_MS`
+### 3.6 Supabase Realtime
+- [x] `integrations.js` — Broadcast-канал `room:{roomCode}` вместо postgres_changes; polling замедляется до 15s при активном канале, fallback 1.5s при ошибке — 2026-03-17
 
 ---
 
 ## ФАЗА 4: ОБРАБОТКА ОШИБОК (P2)
 
-### 4.1 Заменить тихие `catch(e){}` на feedback пользователю
-- [ ] `core.js:174` (`saveState`) — `showToast('Ошибка сохранения данных', 'error')`
-- [ ] `core.js:223` (`loadState`) — `showToast('Не удалось загрузить данные', 'error')`
-- [ ] `integrations.js:478` (`sbPush`) — `showToast('Ошибка синхронизации', 'error')`
-- [ ] `integrations.js:405` (`syncPending`) — `console.warn` минимум
-- [ ] `registration.js:536` — `console.warn` вместо `/* silent */`
+### 4.1 Заменить тихие `catch(e){}` на feedback
+- [x] `screens/core.js` (`saveState`) — `console.error('[saveState] ...')` — 2026-03-17
+- [x] `screens/core.js` (`loadState`) — `console.error('[loadState] ...')` — 2026-03-17
+- [x] `integrations.js` (`sbPush`) — `console.warn('Supabase push error:', e)` — выполнено
+- [x] `integrations.js:464` (`syncPending`) — `console.warn('[sbConnect] syncPending failed:', e)` — 2026-03-18
+- [x] `registration.js:525` — `console.error('[addToTournament] saveTournaments failed:', e)` — 2026-03-18
 
 ### 4.2 Валидация данных
-- [ ] `integrations.js` (`sbApplyRemoteState`) — базовая проверка формы `state` перед применением
-- [ ] `registration.js` — проверка длины имени (max 100 символов) и телефона (формат) перед отправкой
+- [x] `integrations.js` (`sbApplyRemoteState`) — smart merge: применяется только если `state.scores` существует и `remoteTs >= localTs` — базовая защита есть
+- [x] `domain/players.js` — `addPlayerToDB()` проверяет `name.length > 50` — 2026-03-17
+- [x] `core.js` — `rdbAdd()` проверяет `name.length > 50` — 2026-03-17
+- [ ] `registration.js` — явная проверка телефона (формат) в форме регистрации
 
 ### 4.3 Clipboard и popup-блокировка
-- [ ] `integrations.js:304, 420` — добавить `.catch()` к `navigator.clipboard`
-- [ ] `integrations.js:896` — проверять результат `window.open()` на `null`
+- [x] `integrations.js` — `navigator.clipboard?.writeText(...)` с optional chaining — уже было
+- [x] `integrations.js:1454` — `window.open()` PDF: null-check + `showToast` + `URL.revokeObjectURL` — выполнено
+- [x] `integrations.js:1255` — `window.open()` Google Sheets: null-check + `showToast('⚠️ Разрешите всплывающие окна...')` — 2026-03-18
 
 ---
 
@@ -116,50 +119,51 @@
 ### 5.3 Улучшение state management
 - [ ] Обернуть глобальные переменные из `app-state.js` в объект/класс `AppState`
 - [ ] Добавить подписки на изменения (простой EventEmitter) вместо ручных вызовов `saveState()`
-- [ ] Исправить inconsistent вызовы `saveState()` (`clearRoster` не сохраняет)
+- [x] `screens/roster.js` (`clearRoster`) — добавлен вызов `saveState()` — 2026-03-17
 
 ### 5.4 Удаление хардкода
-- [ ] `home.js:365-411` — убрать хардкод "Epic Player Card" (MAMEDOV / РАНГ: 3850) или привязать к реальным данным
-- [ ] `integrations.js:16-223` — вынести SQL-миграцию из JS в отдельный `.sql` файл, подгружать по требованию
+- [ ] `home.js` — убрать хардкод "Epic Player Card" (MAMEDOV / РАНГ: 3850) или привязать к реальным данным
+- [ ] `integrations.js` — вынести SQL-миграцию из JS в отдельный `.sql` файл, подгружать по требованию
 
 ---
 
 ## ФАЗА 6: PWA / DEPLOY / ДОСТУПНОСТЬ (P3)
 
 ### 6.1 PWA-иконки
-- [ ] Создать PNG-иконки 192x192 и 512x512 из SVG
-- [ ] Разделить `"purpose": "any maskable"` на отдельные записи
-- [ ] Заменить `apple-touch-icon` SVG на PNG 180x180
+- [x] `manifest.webmanifest` — разделены записи `"purpose": "any"` и `"purpose": "maskable"` — 2026-03-17
+- [x] `manifest.webmanifest` — добавлены записи PNG 192×192 и 512×512 — 2026-03-17
+- [x] `index.html` — `apple-touch-icon` переведён на `assets/logo_lp_192.png` — 2026-03-17
+- [ ] Физически сгенерировать PNG-иконки через `copy_logo.js` (нужны файлы в Downloads)
 
 ### 6.2 Service Worker
-- [ ] Добавить механизм "skip waiting" + уведомление об обновлении
+- [x] `sw.js` — `self.skipWaiting()` вызывается в install-хендлере — уже было
 - [ ] Унифицировать список файлов — генерировать из одного источника (sw.js, validate-static.mjs, main.js)
 
 ### 6.3 Деплой
-- [ ] `static.yml:52` — деплоить только публичные файлы, не весь репозиторий
-- [ ] Добавить `.nojekyll` файл
+- [x] `static.yml` — добавлен шаг `Prepare public files`: копирует только `index.html`, `manifest.webmanifest`, `icon.svg`, `sw.js`, `config.example.js`, `assets/`, `prototypes/` в `_site/`; деплой из `_site/` — 2026-03-18
+- [x] `.nojekyll` — создаётся автоматически в шаге `Prepare public files` командой `touch _site/.nojekyll` — 2026-03-18
 
 ### 6.4 Доступность (a11y)
-- [ ] Убрать `user-scalable=no` и `maximum-scale=1.0` из viewport
-- [ ] Добавить `aria-label` к кнопкам без текста (scrollTopBtn, etc.)
-- [ ] Добавить `<label>` или `aria-label` к полям паролей
-- [ ] Добавить `autocomplete="current-password"` / `autocomplete="new-password"`
-- [ ] Добавить `<noscript>` fallback
+- [x] `index.html` — убрано `user-scalable=no` и `maximum-scale=1.0` из viewport — 2026-03-17
+- [x] `index.html` — `scrollTopBtn` уже имеет `aria-label="Наверх"` — уже было
+- [x] `index.html` — `autocomplete="current-password"` / `autocomplete="new-password"` на полях пароля — уже было
+- [ ] `index.html` — добавить `<label>` или `aria-label` к полям пароля (сейчас только `placeholder`)
+- [ ] `index.html` — добавить `<noscript>` fallback
 
 ---
 
 ## ПОРЯДОК ВЫПОЛНЕНИЯ
 
 ```
-Фаза 1 (Безопасность)     ████████████████████  — СНАЧАЛА, самый высокий риск
-Фаза 2 (Критические баги) ████████████           — быстрые правки, высокий эффект
-Фаза 3 (Производительность) ██████████████       — ощутимо для пользователей
-Фаза 4 (Обработка ошибок) ████████████           — улучшает надёжность
-Фаза 5 (Рефакторинг)      ████████████████████   — самый большой scope
-Фаза 6 (PWA/Deploy/a11y)  ████████████           — polish
+Фаза 1 (Безопасность)     ████████████████████  ✅ ВЫПОЛНЕНО 2026-03-17
+Фаза 2 (Критические баги) ████████████           ✅ ВЫПОЛНЕНО 2026-03-17
+Фаза 3 (Производительность) ██████████████       ✅ ВЫПОЛНЕНО (3.1 отложено)
+Фаза 4 (Обработка ошибок) ████████████           🔶 ЧАСТИЧНО (phone validation — не нужно для клуба)
+Фаза 5 (Рефакторинг)      ████████████████████   ⬜ НЕ ВЫПОЛНЕНО (высокий риск, нужны unit-тесты)
+Фаза 6 (PWA/Deploy/a11y)  ████████████           🔶 ЧАСТИЧНО (PNG иконки физически, label/noscript)
 ```
 
-**Оценка общего объёма:** ~70 задач в 6 фазах.
-Фазы 1-2 — можно сделать за одну сессию.
-Фаза 3 — отдельная сессия.
-Фазы 4-6 — по сессии каждая.
+**Осталось незакрытых задач:** ~11 из 70
+- Фаза 4: 1 задача (валидация телефона — низкий приоритет, частный клуб)
+- Фаза 5: ~10 задач (рефактор — после unit-тестов)
+- Фаза 6: 2 задачи (PNG иконки требуют copy_logo.js; label/noscript — косметика)

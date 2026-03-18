@@ -66,13 +66,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Prepare public files
+        run: |
+          mkdir -p _site
+          cp index.html manifest.webmanifest icon.svg sw.js config.example.js _site/
+          cp -r assets _site/assets
+          [ -d prototypes ] && cp -r prototypes _site/prototypes || true
+          touch _site/.nojekyll
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
-          path: '.'
+          path: '_site'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

@@ -522,7 +522,7 @@ function _regSyncLocalParticipant(playerId, isWaitlist) {
       if (trn.participants.length >= trn.capacity) trn.status = 'full';
     }
     saveTournaments(arr);
-  } catch(e) { /* silent */ }
+  } catch(e) { console.error('[addToTournament] saveTournaments failed:', e); }
 }
 
 

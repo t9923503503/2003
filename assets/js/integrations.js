@@ -461,7 +461,7 @@ async function sbConnect() {
 
     sbSetStatus('live');
     sbStartPolling();
-    try { await syncPendingPlayerRequests(); } catch(e) {}
+    try { await syncPendingPlayerRequests(); } catch(e) { console.warn('[sbConnect] syncPending failed:', e); }
     sbRefreshCard();
   } catch(e) {
     sbSetStatus('offline');
@@ -1252,7 +1252,8 @@ async function gshExportTournament(tournament, btnId) {
     const spreadsheetId = await gshWriteTournament(tournament);
     showToast('✅ Сохранено в Google Sheets!');
     // Open spreadsheet in new tab
-    window.open(`https://docs.google.com/spreadsheets/d/${spreadsheetId}`, '_blank');
+    const w = window.open(`https://docs.google.com/spreadsheets/d/${spreadsheetId}`, '_blank');
+    if (!w) showToast('⚠️ Разрешите всплывающие окна для открытия таблицы');
   } catch(e) {
     showToast('❌ Ошибка: ' + e.message);
     console.error(e);

@@ -1,5 +1,43 @@
 'use strict';
 
+// Авто-загрузка из data/leaderboard.json — один раз за сессию, тихо.
+// Пропускается если ростер разблокирован (админ управляет данными сам).
+let _autoImportDone = false;
+async function _autoImportPublicData() {
+  if (_autoImportDone || (typeof rosterUnlocked !== 'undefined' && rosterUnlocked)) return;
+  _autoImportDone = true;
+  try {
+    const r = await fetch('./data/leaderboard.json?_=' + Date.now());
+    if (!r.ok) return; // файл отсутствует — не ошибка
+    const data = await r.json();
+    ['M', 'W'].forEach(div => {
+      (Array.isArray(data[div]) ? data[div] : []).forEach(entry => {
+        if (!entry.name) return;
+        const ratingField = div === 'M' ? 'ratingM' : 'ratingW';
+        const trnField    = div === 'M' ? 'tournamentsM' : 'tournamentsW';
+        upsertPlayerInDB({ name: entry.name, gender: div,
+          [ratingField]: entry.rating      || 0,
+          [trnField]:    entry.tournaments || 0,
+          wins:          entry.wins        || 0,
+          lastSeen:      entry.last_seen   || '',
+          status:        'active' });
+      });
+    });
+    (Array.isArray(data.Mix) ? data.Mix : []).forEach(entry => {
+      if (!entry.name) return;
+      upsertPlayerInDB({ name: entry.name, gender: entry.gender || 'M',
+        ratingMix:      entry.rating      || 0,
+        tournamentsMix: entry.tournaments || 0,
+        wins:           entry.wins        || 0,
+        lastSeen:       entry.last_seen   || '',
+        status:         'active' });
+    });
+    // Перерисовать экран если он активен
+    const s = document.getElementById('screen-players');
+    if (s && s.classList.contains('active')) s.innerHTML = renderPlayers();
+  } catch(e) { /* нет файла или сеть недоступна — молча пропускаем */ }
+}
+
 function renderPlayers() {
   const db = loadPlayerDB();
   const g  = playersGender; // 'M' | 'W' | 'Mix'
@@ -96,12 +134,15 @@ function renderPlayers() {
     </div>`;
     }).join('');
 
+  // Авто-загрузка свежих данных из GitHub для посетителей (async, не блокирует рендер)
+  _autoImportPublicData();
+
   return `
 <div class="plr-wrap">
   <div class="plr-header" style="position:relative">
     <div class="plr-title">🔥 РЕЙТИНГ ЛЮТЫХ ИГРОКОВ</div>
     <div class="plr-sub">Professional Points — места, зоны, статистика</div>
-    <button onclick="importPublicData()" title="Загрузить рейтинг из GitHub" style="position:absolute;right:0;top:2px;background:rgba(77,168,218,.15);border:1px solid rgba(77,168,218,.35);color:#4DA8DA;border-radius:7px;padding:5px 9px;font-size:13px;cursor:pointer;line-height:1;">📥</button>
+    ${rosterUnlocked ? `<button onclick="importPublicData()" title="Обновить рейтинг из GitHub" style="position:absolute;right:0;top:2px;background:rgba(77,168,218,.15);border:1px solid rgba(77,168,218,.35);color:#4DA8DA;border-radius:7px;padding:5px 9px;font-size:13px;cursor:pointer;line-height:1;">📥</button>` : ''}
   </div>
 
   <!-- Stats chips -->
@@ -151,12 +192,14 @@ function renderPlayers() {
   <!-- List -->
   <div class="plr-list">${itemsHtml}</div>
 
-  <!-- Export section — roster access only -->
+  <!-- Admin section: import + export — только при разблокированном ростере -->
   ${rosterUnlocked ? `
   <div style="margin-top:20px;padding:14px 16px;background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.2);border-radius:10px;">
-    <div style="font-family:var(--font-b,sans-serif);font-size:11px;font-weight:700;color:#ffd700;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;">📤 Публикация рейтинга</div>
-    <div style="font-size:12px;color:var(--sub,#8888aa);line-height:1.55;margin-bottom:12px;">Скачайте JSON-файлы и сделайте <code style="background:rgba(255,255,255,.08);padding:1px 5px;border-radius:3px">git commit data/</code> в GitHub.<br>Только владелец репозитория может изменить опубликованные данные.</div>
-    <button onclick="exportPublicData()" style="width:100%;padding:10px 14px;background:#ffd700;color:#0d0d1a;font-family:var(--font-b,sans-serif);font-weight:700;font-size:13px;letter-spacing:.5px;border:none;border-radius:7px;cursor:pointer;">⬇️ Скачать data/leaderboard.json + data/history.json</button>
+    <div style="font-family:var(--font-b,sans-serif);font-size:11px;font-weight:700;color:#ffd700;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">⚙️ Управление рейтингом</div>
+    <button onclick="importPublicData()" style="width:100%;padding:9px 14px;background:rgba(77,168,218,.15);color:#4DA8DA;border:1px solid rgba(77,168,218,.4);border-radius:7px;font-size:13px;font-family:var(--font-b,sans-serif);font-weight:700;cursor:pointer;margin-bottom:8px;">📥 Обновить из GitHub</button>
+    <div style="font-size:12px;color:var(--sub,#8888aa);line-height:1.55;margin-bottom:12px;">Загружает актуальный leaderboard.json поверх локальных данных.</div>
+    <button onclick="exportPublicData()" style="width:100%;padding:10px 14px;background:#ffd700;color:#0d0d1a;font-family:var(--font-b,sans-serif);font-weight:700;font-size:13px;letter-spacing:.5px;border:none;border-radius:7px;cursor:pointer;">⬇️ Скачать leaderboard.json + history.json</button>
+    <div style="font-size:12px;color:var(--sub,#8888aa);line-height:1.55;margin-top:8px;">Скачайте и сделайте <code style="background:rgba(255,255,255,.08);padding:1px 5px;border-radius:3px">git commit data/</code> для публикации.</div>
   </div>` : ''}
 </div>`;
 }
