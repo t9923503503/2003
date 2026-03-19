@@ -264,6 +264,7 @@ async function regSelectPlayer(playerId, playerName) {
       const trn = arr.find(t => t.id === _regTrnLocal?.id);
       if (!trn) throw new Error('Турнир не найден в localStorage');
 
+      trn.participants = trn.participants || [];
       if (trn.participants.includes(playerId) || (trn.waitlist||[]).includes(playerId)) {
         throw new Error(playerName + ' уже зарегистрирован(а)');
       }

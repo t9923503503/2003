@@ -24,7 +24,14 @@ function formatTrnDate(iso) {
 const TRN_STORAGE_KEY = 'kotc3_tournaments';
 
 function getTournaments() {
-  try { return JSON.parse(localStorage.getItem(TRN_STORAGE_KEY) || '[]'); }
+  try {
+    const data = JSON.parse(localStorage.getItem(TRN_STORAGE_KEY) || '[]');
+    return data.map(t => ({
+      ...t,
+      participants: t.participants || [],
+      waitlist:     t.waitlist     || [],
+    }));
+  }
   catch(e) { return []; }
 }
 function saveTournaments(data) {
