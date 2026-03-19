@@ -12,6 +12,46 @@ echo "========================================"
 echo " ВОССТАНОВЛЕНИЕ СЕРВЕРА LPBVOLLEY"
 echo "========================================"
 
+# ── 0. Secrets / configuration (must be provided) ─────────────
+# Usage:
+#   source ./server_restore.env
+#   bash server_restore.sh
+#
+# Required env vars:
+#   DB_NAME, DB_USER, DB_PASS
+#   POSTGREST_JWT_SECRET
+#   SITE_DOMAIN, SITE_EMAIL
+#   APP_REPO, APP_BRANCH, APP_PATH
+#   APP_API_BASE, APP_SUPABASE_ANON_KEY
+#
+missing=0
+need() {
+  local k="$1"
+  if [ -z "${!k:-}" ]; then
+    echo " ✗ Missing env: $k"
+    missing=1
+  fi
+}
+need DB_NAME
+need DB_USER
+need DB_PASS
+need POSTGREST_JWT_SECRET
+need SITE_DOMAIN
+need SITE_EMAIL
+need APP_REPO
+need APP_BRANCH
+need APP_PATH
+need APP_API_BASE
+need APP_SUPABASE_ANON_KEY
+if [ "$missing" -ne 0 ]; then
+  echo ""
+  echo "ERROR: Missing required env vars."
+  echo "Create server_restore.env from server_restore.env.example and run:"
+  echo "  source ./server_restore.env"
+  echo "  bash server_restore.sh"
+  exit 2
+fi
+
 # ── 1. Обновление системы ─────────────────────────────────────
 echo "[1/9] Обновление системы..."
 apt-get update -qq && apt-get upgrade -y -qq
@@ -35,10 +75,10 @@ systemctl start postgresql
 
 # ── 4. Создание БД и пользователей ───────────────────────────
 echo "[4/9] Создание базы данных lpbvolley..."
-sudo -u postgres psql << 'PGSQL'
-CREATE DATABASE lpbvolley;
-CREATE USER lpbvolley WITH PASSWORD 'LpbVolley2026!';
-GRANT ALL PRIVILEGES ON DATABASE lpbvolley TO lpbvolley;
+sudo -u postgres psql << PGSQL
+CREATE DATABASE ${DB_NAME};
+CREATE USER ${DB_USER} WITH PASSWORD '${DB_PASS}';
+GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_USER};
 CREATE ROLE anon NOLOGIN;
 CREATE ROLE authenticated NOLOGIN;
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
@@ -51,12 +91,12 @@ echo "[5/9] Восстановление базы данных из бэкапа
 # Бэкап должен быть рядом со скриптом
 BACKUP_FILE="$(dirname "$0")/lpbvolley_backup_20260319.sql"
 if [ -f "$BACKUP_FILE" ]; then
-    sudo -u postgres psql lpbvolley < "$BACKUP_FILE"
+    sudo -u postgres psql "${DB_NAME}" < "$BACKUP_FILE"
     echo "    ✓ Бэкап восстановлен"
 else
     echo "    ⚠ Файл бэкапа не найден: $BACKUP_FILE"
     echo "    Загрузите бэкап и выполните:"
-    echo "    sudo -u postgres psql lpbvolley < lpbvolley_backup_20260319.sql"
+    echo "    sudo -u postgres psql ${DB_NAME} < lpbvolley_backup_20260319.sql"
 fi
 
 # ── 6. PostgREST ──────────────────────────────────────────────
@@ -69,13 +109,13 @@ mv postgrest /usr/local/bin/postgrest
 chmod +x /usr/local/bin/postgrest
 
 # Конфиг PostgREST
-cat > /etc/postgrest.conf << 'EOF'
-db-uri = "postgres://lpbvolley:LpbVolley2026!@localhost:5432/lpbvolley"
+cat > /etc/postgrest.conf << EOF
+db-uri = "postgres://${DB_USER}:${DB_PASS}@localhost:5432/${DB_NAME}"
 db-schema = "public"
 db-anon-role = "anon"
 server-port = 3000
 server-host = "127.0.0.1"
-jwt-secret = "lpbvolley-super-secret-jwt-key-2026"
+jwt-secret = "${POSTGREST_JWT_SECRET}"
 EOF
 
 # systemd сервис для PostgREST
@@ -101,35 +141,44 @@ systemctl start postgrest
 
 # ── 7. Сайт из GitHub ─────────────────────────────────────────
 echo "[7/9] Деплой сайта из GitHub..."
-mkdir -p /var/www/ipt
-git clone https://github.com/t9923503503/2003.git /var/www/ipt
-chown -R www-data:www-data /var/www/ipt
+mkdir -p "${APP_PATH}"
+if [ -d "${APP_PATH}/.git" ]; then
+  echo "    Repo exists — updating..."
+  cd "${APP_PATH}"
+  git fetch --all -q
+  git checkout -q "${APP_BRANCH}"
+  git pull -q origin "${APP_BRANCH}"
+else
+  git clone "${APP_REPO}" "${APP_PATH}"
+fi
+chown -R www-data:www-data "${APP_PATH}"
 
 # config.js (секреты — не в репо)
-cat > /var/www/ipt/config.js << 'EOF'
+cat > "${APP_PATH}/config.js" << EOF
 window.APP_CONFIG = {
-  supabaseUrl:     'https://sv-ugra.ru/api',
-  supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiJ9.fOS7KmYRYuiSmfSzeEP17scSIMkbEejUPllW_nSHr9M',
+  supabaseUrl:     '${APP_API_BASE}',
+  supabaseAnonKey: '${APP_SUPABASE_ANON_KEY}',
 };
 EOF
 
 # Скрипт деплоя
-cat > /usr/local/bin/deploy-ipt << 'DEPLOY'
+cat > /usr/local/bin/deploy-ipt << DEPLOY
 #!/bin/bash
-cd /var/www/ipt
-git pull origin main
-chown -R www-data:www-data /var/www/ipt
+set -e
+cd "${APP_PATH}"
+git pull origin "${APP_BRANCH}"
+chown -R www-data:www-data "${APP_PATH}"
 echo 'Deploy done: ' $(date)
 DEPLOY
 chmod +x /usr/local/bin/deploy-ipt
 
 # ── 8. nginx ──────────────────────────────────────────────────
 echo "[8/9] Настройка nginx..."
-cat > /etc/nginx/sites-available/ipt << 'EOF'
+cat > /etc/nginx/sites-available/ipt << EOF
 server {
     listen 80;
-    server_name sv-ugra.ru www.sv-ugra.ru 157.22.173.248;
-    root /var/www/ipt;
+    server_name ${SITE_DOMAIN} www.${SITE_DOMAIN};
+    root ${APP_PATH};
     index index.html;
 
     location /api/rest/v1/ {
@@ -161,7 +210,7 @@ nginx -t && systemctl enable nginx && systemctl restart nginx
 
 # ── 9. SSL сертификат ─────────────────────────────────────────
 echo "[9/9] Получение SSL сертификата..."
-certbot --nginx -d sv-ugra.ru -d www.sv-ugra.ru --non-interactive --agree-tos -m admin@sv-ugra.ru
+certbot --nginx -d "${SITE_DOMAIN}" -d "www.${SITE_DOMAIN}" --non-interactive --agree-tos -m "${SITE_EMAIL}"
 
 # Финальная проверка
 echo ""
@@ -172,7 +221,7 @@ systemctl is-active postgresql && echo "  ✓ PostgreSQL 16"  || echo "  ✗ Pos
 systemctl is-active postgrest  && echo "  ✓ PostgREST"      || echo "  ✗ PostgREST — ошибка"
 systemctl is-active nginx      && echo "  ✓ nginx"          || echo "  ✗ nginx — ошибка"
 echo ""
-echo "  Сайт:  https://sv-ugra.ru"
-echo "  API:   https://sv-ugra.ru/api/rest/v1/tournaments"
+echo "  Сайт:  https://${SITE_DOMAIN}"
+echo "  API:   https://${SITE_DOMAIN}/api/rest/v1/tournaments"
 echo ""
 echo " Добавь SSH-ключ нового сервера в GitHub если нужно деплоить через git"

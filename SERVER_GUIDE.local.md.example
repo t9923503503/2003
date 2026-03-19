@@ -1,0 +1,32 @@
+# SERVER_GUIDE.local.md.example
+# Скопируйте этот файл в SERVER_GUIDE.local.md и заполните реальные значения.
+# Важно: SERVER_GUIDE.local.md добавлен в .gitignore и не должен попадать в git.
+
+## SSH
+
+- SSH_HOST=157.22.173.248
+- SSH_PORT=22
+- SSH_USER=<REAL_SSH_USER>
+- SSH_PASSWORD=<REAL_SSH_PASSWORD>
+
+## Database
+
+- DB_HOST=localhost
+- DB_PORT=5432
+- DB_NAME=lpbvolley
+- DB_USER=<REAL_DB_USER>
+- DB_PASSWORD=<REAL_DB_PASSWORD>
+
+## App / Deploy
+
+- APP_PATH=/var/www/ipt
+- DEPLOY_SCRIPT=/usr/local/bin/deploy-ipt
+- PROD_URL=http://157.22.173.248
+- POSTGREST_URL=http://157.22.173.248/api/rest/v1/
+
+## Quick commands (example)
+
+```bash
+ssh ${SSH_USER}@${SSH_HOST}
+ssh ${SSH_USER}@${SSH_HOST} "${DEPLOY_SCRIPT}"
+```
