@@ -2704,3 +2704,9 @@ button.player-tap:active{opacity:.6}
   letter-spacing: .5px; pointer-events: none;
 }
 .ipt-score-tap { position: relative; }
+
+/* ── IPT player list gender icon ───────────────────────────── */
+.ipt-g-icon {
+  font-size: 11px; opacity: .55; margin-right: 4px;
+  font-family: sans-serif;
+}

@@ -139,14 +139,17 @@ function _renderIPTPlayerList() {
   };
 
   const items = sorted.map(p => {
-    const chk = _iptSelectedIds.has(p.id) ? 'checked' : '';
+    const chk   = _iptSelectedIds.has(p.id) ? 'checked' : '';
     const gIcon = p.gender === 'M' ? '♂' : p.gender === 'W' ? '♀' : '';
-    return `<label class="ipt-pl-item" data-name="${(p.name||'').replace(/"/g,'')}" data-pid="${p.id}">
-      <input type="checkbox" ${chk} onchange="iptTogglePlayer('${p.id}')">
-      <span class="ipt-pl-name">${_iptGender==='mixed'?`<span style="opacity:.5;font-size:.85em">${gIcon}</span> `:''} ${p.name || '—'}</span>
-      ${lvlBadge(p.level)}
-    </label>`;
-  }).join('') || `<div class="sc-info" style="padding:12px 0">База игроков пуста. Добавьте игроков в разделе 👥</div>`;
+    const gBadge = _iptGender === 'mixed'
+      ? '<span class="ipt-g-icon">' + gIcon + '</span>'
+      : '';
+    return '<label class="ipt-pl-item" data-name="' + (p.name||'').replace(/"/g,'') + '" data-pid="' + p.id + '">'
+      + '<input type="checkbox" ' + chk + ' onchange="iptTogglePlayer(\'' + p.id + '\')">'
+      + '<span class="ipt-pl-name">' + gBadge + (p.name || '—') + '</span>'
+      + lvlBadge(p.level)
+      + '</label>';
+  }).join('') || '<div class="sc-info" style="padding:12px 0">База игроков пуста. Добавьте игроков в разделе 👥</div>';
 
   const sel     = _iptSelectedIds.size;
   const selM    = [..._iptSelectedIds].filter(id => db.find(p=>p.id===id)?.gender==='M').length;
