@@ -114,9 +114,22 @@ function _renderIPTPlayerList() {
     return (a.name || '').localeCompare(b.name || '', 'ru');
   });
 
-  // Auto-select first `needed` if nothing selected
+  // Auto-select if nothing selected
   if (_iptSelectedIds.size === 0 && sorted.length > 0) {
-    sorted.slice(0, needed).forEach(p => _iptSelectedIds.add(p.id));
+    if (_iptGender === 'mixed') {
+      // М/Ж: поровну — половина мужчин, половина женщин
+      const half = Math.floor(needed / 2);
+      const men   = sorted.filter(p => p.gender === 'M').slice(0, half);
+      const women = sorted.filter(p => p.gender === 'W').slice(0, half);
+      // Если одного пола меньше — добираем из другого
+      const total = men.length + women.length;
+      const extra = needed - total;
+      const allSorted = sorted.filter(p => !men.find(m=>m.id===p.id) && !women.find(w=>w.id===p.id));
+      [...men, ...women, ...allSorted.slice(0, extra)]
+        .forEach(p => _iptSelectedIds.add(p.id));
+    } else {
+      sorted.slice(0, needed).forEach(p => _iptSelectedIds.add(p.id));
+    }
     localStorage.setItem('kotc3_ipt_sel', JSON.stringify([..._iptSelectedIds]));
   }
 
@@ -127,21 +140,25 @@ function _renderIPTPlayerList() {
 
   const items = sorted.map(p => {
     const chk = _iptSelectedIds.has(p.id) ? 'checked' : '';
+    const gIcon = p.gender === 'M' ? '♂' : p.gender === 'W' ? '♀' : '';
     return `<label class="ipt-pl-item" data-name="${(p.name||'').replace(/"/g,'')}" data-pid="${p.id}">
       <input type="checkbox" ${chk} onchange="iptTogglePlayer('${p.id}')">
-      <span class="ipt-pl-name">${p.name || '—'}</span>
+      <span class="ipt-pl-name">${_iptGender==='mixed'?`<span style="opacity:.5;font-size:.85em">${gIcon}</span> `:''} ${p.name || '—'}</span>
       ${lvlBadge(p.level)}
     </label>`;
   }).join('') || `<div class="sc-info" style="padding:12px 0">База игроков пуста. Добавьте игроков в разделе 👥</div>`;
 
-  const sel = _iptSelectedIds.size;
+  const sel     = _iptSelectedIds.size;
+  const selM    = [..._iptSelectedIds].filter(id => db.find(p=>p.id===id)?.gender==='M').length;
+  const selW    = [..._iptSelectedIds].filter(id => db.find(p=>p.id===id)?.gender==='W').length;
+  const mixInfo = _iptGender === 'mixed' ? ` <span style="opacity:.6;font-size:.85em">(♂${selM} ♀${selW})</span>` : '';
   const countColor = sel === needed ? '#6ABF69' : sel > needed ? '#e94560' : 'var(--muted)';
 
   return `<div class="ipt-ps-wrap">
     <input class="ipt-ps-inp" type="text" placeholder="🔍 Поиск ${{ male:'мужчины', female:'женщины', mixed:'игрока' }[_iptGender]}..." oninput="iptPlayerSearch(this.value)">
     <div class="ipt-pl-list">${items}</div>
     <div class="ipt-ps-footer">
-      <span id="ipt-ps-count" style="color:${countColor}">Выбрано: ${sel} / ${needed}</span>
+      <span id="ipt-ps-count" style="color:${countColor}">Выбрано: ${sel} / ${needed}${mixInfo}</span>
       <button class="ipt-ps-clear-btn" onclick="iptClearSelection()">✕ Сбросить</button>
     </div>
   </div>`;
