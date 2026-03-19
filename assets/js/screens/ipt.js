@@ -213,7 +213,7 @@ function _renderIPTCourt(trn, ipt, group, round, court, cn, db, gi) {
     </div>
     <div class="ipt-matchup">
       ${teamHtml(n1, s1, 1, dis1m, dis1p, winner === 1)}
-      <div class="ipt-vs">VS</div>
+      <div class="ipt-vs"><span class="ipt-vs-lbl">VS</span></div>
       ${teamHtml(n2, s2, 2, dis2m, dis2p, winner === 2)}
     </div>
   </div>`;

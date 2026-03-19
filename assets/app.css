@@ -2500,28 +2500,42 @@ button.player-tap:active{opacity:.6}
 .ipt-court-badge.wait { background: rgba(251,191,36,.1); color: #fbbf24; border-color: rgba(251,191,36,.3); }
 
 /* Matchup layout */
-.ipt-matchup { display: flex; align-items: center; padding: 12px 14px; gap: 8px; }
-.ipt-team { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;
-  padding: 8px 4px; border-radius: 8px; transition: background .2s; }
-.ipt-team-win { background: rgba(34,197,94,.08); }
-.ipt-team-names { font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 700;
-  color: var(--text); text-align: center; line-height: 1.3; }
-.ipt-amp { color: var(--muted); font-size: 12px; margin: 0 3px; }
-.ipt-score-row { display: flex; align-items: center; gap: 6px; }
-.ipt-score { font-family: 'Bebas Neue', sans-serif; font-size: 40px; line-height: 1;
-  min-width: 54px; text-align: center; color: var(--text);
-  transition: color .15s; }
+/* ── IPT Court — mobile-first vertical layout ─────────────── */
+.ipt-matchup { display: flex; flex-direction: column; padding: 0; gap: 0; }
+
+/* каждая команда — горизонтальная строка: имена слева, счёт справа */
+.ipt-team { display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 14px 14px 16px; gap: 10px; transition: background .2s; }
+.ipt-team-win { background: rgba(34,197,94,.09); }
+
+.ipt-team-names { flex: 1; font-family: 'Barlow Condensed', sans-serif;
+  font-size: 17px; font-weight: 700; color: var(--text); line-height: 1.3;
+  word-break: break-word; }
+.ipt-amp { color: var(--muted); font-size: 13px; margin: 0 3px; }
+
+/* счёт + кнопки справа */
+.ipt-score-row { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.ipt-score { font-family: 'Bebas Neue', sans-serif; font-size: 54px; line-height: 1;
+  min-width: 62px; text-align: center; color: var(--text); transition: color .15s; }
 .ipt-score.win  { color: #22c55e; }
 .ipt-score.lose { color: var(--muted); }
-.ipt-score-btn { width: 44px; height: 44px; border-radius: 8px; border: none;
-  font-size: 20px; font-weight: 700; cursor: pointer; transition: all .15s; }
-.ipt-score-btn:disabled { opacity: .3; cursor: not-allowed; }
-.ipt-minus { background: rgba(239,68,68,.15); color: var(--minus); }
-.ipt-minus:not(:disabled):active { background: rgba(239,68,68,.3); }
-.ipt-plus  { background: rgba(34,197,94,.15); color: var(--plus); }
-.ipt-plus:not(:disabled):active  { background: rgba(34,197,94,.3); }
-.ipt-vs { font-family: 'Bebas Neue', sans-serif; font-size: 16px; color: var(--muted);
-  flex-shrink: 0; }
+
+/* кнопки +/− — большие, удобные на телефоне */
+.ipt-score-btn { width: 60px; height: 60px; border-radius: 12px; border: none;
+  font-size: 26px; font-weight: 900; cursor: pointer; transition: all .12s;
+  display: flex; align-items: center; justify-content: center; touch-action: manipulation; }
+.ipt-score-btn:disabled { opacity: .25; cursor: not-allowed; }
+.ipt-minus { background: rgba(239,68,68,.18); color: #ef4444; }
+.ipt-minus:not(:disabled):active { background: rgba(239,68,68,.40); transform: scale(.93); }
+.ipt-plus  { background: rgba(34,197,94,.18); color: #22c55e; }
+.ipt-plus:not(:disabled):active  { background: rgba(34,197,94,.40); transform: scale(.93); }
+
+/* VS-разделитель между командами */
+.ipt-vs { display: flex; align-items: center; gap: 0; padding: 0 16px; }
+.ipt-vs::before, .ipt-vs::after { content:''; flex:1; height:1px;
+  background: var(--border); }
+.ipt-vs-lbl { font-family: 'Bebas Neue', sans-serif; font-size: 13px;
+  color: var(--muted); padding: 0 10px; letter-spacing: 1px; }
 
 /* Standings */
 .ipt-standings { margin: 6px 12px 0; border-radius: 10px; border: 1px solid #2a2a44;
