@@ -140,9 +140,12 @@ function _renderIPTPlayerList() {
 
   const items = sorted.map(p => {
     const chk = _iptSelectedIds.has(p.id) ? 'checked' : '';
-    const gd  = p.gender === 'M' ? 'm' : p.gender === 'W' ? 'w' : '';
-    // data-gender на label → иконка через CSS ::before, JS её не сотрёт
-    const gdAttr = (_iptGender === 'mixed' && gd) ? ' data-gender="' + gd + '"' : '';
+    // Нормализуем гендер: 'M'/'m'/'male' → 'm', 'W'/'w'/'f'/'female' → 'w'
+    const raw = String(p.gender || '').toLowerCase();
+    const gd  = (raw === 'm' || raw === 'male')                        ? 'm'
+              : (raw === 'w' || raw === 'f' || raw === 'female')       ? 'w' : '';
+    // data-gender ВСЕГДА на label (не только mixed) → CSS ::before показывает иконку
+    const gdAttr = gd ? ' data-gender="' + gd + '"' : '';
     return '<label class="ipt-pl-item"' + gdAttr
       + ' data-name="' + (p.name||'').replace(/"/g,'')
       + '" data-pid="' + p.id + '">'
