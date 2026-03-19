@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'volley-static-v18';
+const CACHE_VERSION = 'volley-static-v19';
 const CORE_ASSETS = [
   './',
   './index.html',

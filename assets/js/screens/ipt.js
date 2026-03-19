@@ -2,6 +2,37 @@
 
 let _iptActiveTrnId = null;
 
+// ── Inline score editor (двойной тап → ввод с клавиатуры) ──────
+function iptOpenEdit(el, trnId, gi, rn, cn, side) {
+  if (el.querySelector('input')) return; // уже открыт
+  const cur = parseInt(el.textContent, 10) || 0;
+
+  // Заменяем div на строку: [input] [✓]
+  el.innerHTML = `
+    <input  id="ipt-inp-${gi}-${rn}-${cn}-${side}"
+            class="ipt-score-input"
+            type="number" inputmode="numeric" pattern="[0-9]*"
+            min="0" max="99" value="${cur}"
+            onkeydown="if(event.key==='Enter'){iptConfirmEdit(this,'${trnId}',${gi},${rn},${cn},${side})}"
+            onclick="event.stopPropagation()"
+            oninput="this.value=this.value.replace(/[^0-9]/g,'')" />
+    <button class="ipt-edit-ok"
+            onclick="event.stopPropagation();iptConfirmEdit(this.previousElementSibling,'${trnId}',${gi},${rn},${cn},${side})">✓</button>`;
+
+  const inp = el.querySelector('input');
+  inp.focus();
+  inp.select();
+}
+
+function iptConfirmEdit(inp, trnId, gi, rn, cn, side) {
+  const val = parseInt(inp.value, 10);
+  if (!isNaN(val) && val >= 0) {
+    iptSetScore(trnId, gi, rn, cn, side, val);
+  } else {
+    _iptRerender(); // отмена — перерисовать
+  }
+}
+
 // ── Entry point ───────────────────────────────────────────────
 function openIPT(trnId) {
   const arr = getTournaments();
@@ -193,17 +224,26 @@ function _renderIPTCourt(trn, ipt, group, round, court, cn, db, gi) {
   const dis2m = s2 <= 0 || finished || waiting ? 'disabled' : '';
   const dis2p = finished || waiting ? 'disabled' : '';
 
-  const teamHtml = (names, score, side, disM, disP, winnerSide) => `
+  const tid = escAttr(trnId);
+  const teamHtml = (names, score, side, disM, disP, winnerSide) => {
+    const editable = !finished && !waiting;
+    const scoreEl  = editable
+      ? `<div class="ipt-score${winnerSide ? ' win' : winner && !winnerSide ? ' lose' : ''} ipt-score-tap"
+            title="Двойной тап — ввод с клавиатуры"
+            ondblclick="iptOpenEdit(this,'${tid}',${gi},${rn},${cn},${side})">${score}</div>`
+      : `<div class="ipt-score${winnerSide ? ' win' : winner && !winnerSide ? ' lose' : ''}">${score}</div>`;
+    return `
     <div class="ipt-team${winnerSide ? ' ipt-team-win' : ''}">
       <div class="ipt-team-names">${names.join('<span class="ipt-amp"> + </span>')}</div>
       <div class="ipt-score-row">
         <button class="ipt-score-btn ipt-minus" ${disM}
-          onclick="iptApplyScore('${escAttr(trnId)}',${gi},${rn},${cn},${side},-1)">−</button>
-        <div class="ipt-score${winnerSide ? ' win' : winner && !winnerSide ? ' lose' : ''}">${score}</div>
+          onclick="iptApplyScore('${tid}',${gi},${rn},${cn},${side},-1)">−</button>
+        ${scoreEl}
         <button class="ipt-score-btn ipt-plus" ${disP}
-          onclick="iptApplyScore('${escAttr(trnId)}',${gi},${rn},${cn},${side},1)">+</button>
+          onclick="iptApplyScore('${tid}',${gi},${rn},${cn},${side},1)">+</button>
       </div>
     </div>`;
+  };
 
   return `<div class="ipt-court${finished ? ' ipt-court-done' : waiting ? ' ipt-court-wait' : ''}" style="--ipt-c:${color}">
     <div class="ipt-court-hdr">

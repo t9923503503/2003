@@ -100,6 +100,17 @@ function generateDynamicIPTRounds(participants) {
 }
 
 /**
+ * Compatibility wrapper used by app screens/tests.
+ * For 8 players we keep the deterministic IPT schedule,
+ * otherwise we fall back to the dynamic generator.
+ */
+function tryGenerateIPTRoundsDynamic(participants) {
+  if (!Array.isArray(participants) || participants.length < 4) return [];
+  if (participants.length === 8) return generateIPTRounds(participants);
+  return generateDynamicIPTRounds(participants);
+}
+
+/**
  * Build partner/opponent history from rounds.
  */
 function buildIPTMatchHistory(rounds) {
@@ -219,6 +230,35 @@ function calcIPTStandings(trn) {
  * @param {1|2}    team
  * @param {1|-1}   delta
  */
+/**
+ * Прямая установка счёта (ввод с клавиатуры по двойному тапу).
+ * Вызывается из inline-input в ipt.js после подтверждения.
+ */
+function iptSetScore(trnId, groupIdx, roundNum, courtNum, team, value) {
+  const arr = getTournaments();
+  const trn = arr.find(t => t.id === trnId);
+  if (!trn?.ipt) return;
+  _migrateIPTLegacy(trn);
+
+  const group = trn.ipt.groups[groupIdx];
+  if (!group) return;
+  const round = group.rounds[roundNum];
+  if (!round) return;
+  const court = round.courts[courtNum];
+  if (!court || court.status === 'finished') return;
+
+  const v = Math.max(0, Math.min(99, parseInt(value, 10) || 0));
+  court[team === 1 ? 'score1' : 'score2'] = v;
+
+  if (iptMatchFinished(court, trn.ipt.pointLimit, trn.ipt.finishType)) {
+    court.status = 'finished';
+    showToast(`✅ Матч завершён: ${court.score1} : ${court.score2}`, 'success');
+  }
+
+  saveTournaments(arr);
+  _iptRerender();
+}
+
 function iptApplyScore(trnId, groupIdx, roundNum, courtNum, team, delta) {
   const arr = getTournaments();
   const trn = arr.find(t => t.id === trnId);
