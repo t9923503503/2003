@@ -2,10 +2,11 @@
 // ════════════════════════════════════════════════════════════
 // 1. STATE
 // ════════════════════════════════════════════════════════════
-// ppc  = players per court (4 or 5)
-// nc   = number of active courts (1..4)
-let ppc = 5;
-let nc  = 3;
+// ppc  = players per court (fixed to 4 for ThaiVolley32)
+// nc   = number of active courts (fixed to 4 for ThaiVolley32)
+let ppc = 4;
+let nc  = 4;
+// ThaiVolley32 needs rotating partners per round; fixedPairs must stay off.
 let fixedPairs = false;  // режим фиксированных пар — напарник не меняется
 const courtRound = [0, 0, 0, 0]; // текущий отображаемый раунд для каждого корта
 const divRoundState = { hard:0, advance:0, medium:0, lite:0 }; // текущий раунд дивизиона

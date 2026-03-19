@@ -1253,6 +1253,13 @@ CREATE TABLE IF NOT EXISTS tournament_results (
   UNIQUE (tournament_id, player_id)
 );
 
+-- ThaiVolley32 server compute: extra fields for debugging/export
+ALTER TABLE tournament_results
+  ADD COLUMN IF NOT EXISTS wins   INT     DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS diff   INT     DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS coef   NUMERIC DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS balls  INT     DEFAULT 0;
+
 CREATE INDEX IF NOT EXISTS idx_tr_tournament
   ON tournament_results (tournament_id);
 CREATE INDEX IF NOT EXISTS idx_tr_player
@@ -1431,6 +1438,557 @@ GRANT EXECUTE ON FUNCTION publish_tournament_results(TEXT, TEXT, TEXT, TEXT, TEX
   TO anon, authenticated;
 
 
+-- ── ThaiVolley32 server compute helpers ───────────────────────
+-- Mapping a diff into points: >=7→3, 3–6→2, 1–2→1, <=0→0
+CREATE OR REPLACE FUNCTION thai32_diff_to_pts(p_diff INT)
+RETURNS INT
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT CASE
+    WHEN p_diff >= 7 THEN 3
+    WHEN p_diff >= 3 THEN 2
+    WHEN p_diff >= 1 THEN 1
+    ELSE 0
+  END;
+$$;
+
+-- K = (60 + Σdiff) / (60 − Σdiff) with zero-division protection
+CREATE OR REPLACE FUNCTION thai32_calc_k(p_diff_sum INT)
+RETURNS NUMERIC
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+DECLARE
+  denom NUMERIC := 60 - p_diff_sum;
+BEGIN
+  IF abs(denom) < 1e-9 THEN
+    RETURN 999.99;
+  END IF;
+  RETURN (60 + p_diff_sum) / denom;
+END;
+$$;
+
+-- Deterministic opponent mapping within a tour for ppc=4.
+CREATE OR REPLACE FUNCTION thai32_ipt_opp_idx(p_mi INT, p_ri INT)
+RETURNS INT
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT CASE
+    -- ri=0: (0↔1), (2↔3)
+    WHEN p_ri = 0 AND p_mi = 0 THEN 1
+    WHEN p_ri = 0 AND p_mi = 1 THEN 0
+    WHEN p_ri = 0 AND p_mi = 2 THEN 3
+    WHEN p_ri = 0 AND p_mi = 3 THEN 2
+
+    -- ri=1: (0↔2), (1↔3)
+    WHEN p_ri = 1 AND p_mi = 0 THEN 2
+    WHEN p_ri = 1 AND p_mi = 2 THEN 0
+    WHEN p_ri = 1 AND p_mi = 1 THEN 3
+    WHEN p_ri = 1 AND p_mi = 3 THEN 1
+
+    -- ri=2: (0↔3), (1↔2)
+    WHEN p_ri = 2 AND p_mi = 0 THEN 3
+    WHEN p_ri = 2 AND p_mi = 3 THEN 0
+    WHEN p_ri = 2 AND p_mi = 1 THEN 2
+    WHEN p_ri = 2 AND p_mi = 2 THEN 1
+
+    -- ri=3 (same as ri=2): (0↔3), (1↔2)
+    WHEN p_ri = 3 AND p_mi = 0 THEN 3
+    WHEN p_ri = 3 AND p_mi = 3 THEN 0
+    WHEN p_ri = 3 AND p_mi = 1 THEN 2
+    WHEN p_ri = 3 AND p_mi = 2 THEN 1
+    ELSE NULL
+  END;
+$$;
+
+-- partnerM(wi, ri) for fixedPairs=false and ppc=4
+CREATE OR REPLACE FUNCTION thai32_partner_m(p_wi INT, p_ri INT)
+RETURNS INT
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT (((p_wi - p_ri) % 4 + 4) % 4);
+$$;
+
+-- divPartnerM(wi, ri, Nd) for R2 divisions
+CREATE OR REPLACE FUNCTION thai32_div_partner_m(p_wi INT, p_ri INT, p_nd INT)
+RETURNS INT
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT (((p_wi - p_ri) % p_nd + p_nd) % p_nd);
+$$;
+
+-- Professional points table (same as JS POINTS_TABLE)
+CREATE OR REPLACE FUNCTION thai32_rating_pts(p_place INT)
+RETURNS INT
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT CASE p_place
+    WHEN  1 THEN 100
+    WHEN  2 THEN  90
+    WHEN  3 THEN  82
+    WHEN  4 THEN  76
+    WHEN  5 THEN  70
+    WHEN  6 THEN  65
+    WHEN  7 THEN  60
+    WHEN  8 THEN  56
+    WHEN  9 THEN  52
+    WHEN 10 THEN  48
+    WHEN 11 THEN  44
+    WHEN 12 THEN  42
+    WHEN 13 THEN  40
+    WHEN 14 THEN  38
+    WHEN 15 THEN  36
+    WHEN 16 THEN  34
+    WHEN 17 THEN  32
+    WHEN 18 THEN  30
+    WHEN 19 THEN  28
+    WHEN 20 THEN  26
+    WHEN 21 THEN  24
+    WHEN 22 THEN  22
+    WHEN 23 THEN  20
+    WHEN 24 THEN  18
+    WHEN 25 THEN  16
+    WHEN 26 THEN  14
+    WHEN 27 THEN  12
+    WHEN 28 THEN  10
+    WHEN 29 THEN   8
+    WHEN 30 THEN   7
+    WHEN 31 THEN   6
+    WHEN 32 THEN   5
+    WHEN 33 THEN   4
+    WHEN 34 THEN   3
+    WHEN 35 THEN   2
+    WHEN 36 THEN   2
+    WHEN 37 THEN   1
+    WHEN 38 THEN   1
+    WHEN 39 THEN   1
+    WHEN 40 THEN   1
+    ELSE 1
+  END;
+$$;
+
+
+-- ── 18b. RPC: publish_tournament_results_thai32_server_compute ─────────────
+-- Server-side compute of points/coef/place for ThaiVolley32 from raw scores/rosters.
+CREATE OR REPLACE FUNCTION publish_tournament_results_thai32_server_compute(
+  p_external_id  TEXT,
+  p_name         TEXT,
+  p_date         TEXT,      -- 'YYYY-MM-DD'
+  p_format       TEXT,
+  p_division     TEXT,
+  p_results      JSONB,
+  p_raw_results  JSONB
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_trn_id   UUID;
+  v_rec      RECORD;
+  v_player   players%ROWTYPE;
+  v_count    INT := 0;
+
+  v_scores     JSONB := p_raw_results->'scores';
+  v_roster     JSONB := p_raw_results->'roster';
+  v_div_scores JSONB := p_raw_results->'divScores';
+  v_div_roster JSONB := p_raw_results->'divRoster';
+
+  -- loop vars
+  v_gender   TEXT;
+  v_div_key  TEXT;
+  v_ci        INT;
+  v_mi        INT;
+  v_wi        INT;
+  v_ri        INT;
+  v_nd        INT;
+
+  -- per-player accumulators
+  v_name   TEXT;
+  v_own    INT;
+  v_opp    INT;
+  v_dif    INT;
+  v_wins   INT;
+  v_diff   INT;
+  v_pts    INT;
+  v_balls  INT;
+
+  v_oppmi  INT;
+  v_manidx INT;
+  v_oppman INT;
+
+  -- server computed values for current v_rec
+  v_place      INT;
+  v_game_pts   INT;
+  v_rating_pts INT;
+  v_wins_out   INT;
+  v_diff_out   INT;
+  v_coef_out   NUMERIC;
+  v_balls_out  INT;
+BEGIN
+  -- ① Upsert tournament
+  INSERT INTO tournaments (name, date, format, division, status, capacity, external_id)
+  VALUES (
+    trim(p_name),
+    NULLIF(trim(p_date), '')::DATE,
+    COALESCE(NULLIF(trim(p_format), ''), 'King of the Court'),
+    COALESCE(NULLIF(trim(p_division), ''), 'Мужской'),
+    'finished',
+    jsonb_array_length(p_results),
+    p_external_id
+  )
+  ON CONFLICT (external_id) DO UPDATE
+    SET name   = EXCLUDED.name,
+        date   = EXCLUDED.date,
+        status = 'finished'
+  RETURNING id INTO v_trn_id;
+
+  IF v_trn_id IS NULL THEN
+    SELECT id INTO v_trn_id
+      FROM tournaments
+     WHERE external_id = p_external_id
+     LIMIT 1;
+  END IF;
+
+  IF v_trn_id IS NULL THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'TOURNAMENT_UPSERT_FAILED');
+  END IF;
+
+  -- ② Compute combined totals from raw JSON
+  CREATE TEMP TABLE tmp_thai32_totals (
+    gender TEXT NOT NULL,
+    name   TEXT NOT NULL,
+    wins   INT  NOT NULL DEFAULT 0,
+    diff   INT  NOT NULL DEFAULT 0,
+    pts    INT  NOT NULL DEFAULT 0,
+    balls  INT  NOT NULL DEFAULT 0,
+    PRIMARY KEY (gender, name)
+  ) ON COMMIT DROP;
+
+  -- R1: scores[ci][mi][ri] + perfect opponent mapping
+  FOREACH v_gender IN ARRAY ARRAY['M','W'] LOOP
+    FOR v_ci IN 0..3 LOOP
+      FOR v_mi IN 0..3 LOOP
+        -- resolve player name from roster
+        IF v_gender = 'M' THEN
+          v_name := (v_roster #>> ARRAY[v_ci::text, 'men', v_mi::text]);
+        ELSE
+          v_name := (v_roster #>> ARRAY[v_ci::text, 'women', v_mi::text]);
+        END IF;
+
+        IF v_name IS NULL OR trim(v_name) = '' THEN
+          CONTINUE;
+        END IF;
+
+        v_wins  := 0;
+        v_diff  := 0;
+        v_pts   := 0;
+        v_balls := 0;
+
+        FOR v_ri IN 0..3 LOOP
+          IF v_gender = 'M' THEN
+            v_own := (v_scores #>> ARRAY[v_ci::text, v_mi::text, v_ri::text])::INT;
+            v_oppmi := thai32_ipt_opp_idx(v_mi, v_ri);
+            v_opp := CASE
+              WHEN v_oppmi IS NULL THEN NULL
+              ELSE (v_scores #>> ARRAY[v_ci::text, v_oppmi::text, v_ri::text])::INT
+            END;
+          ELSE
+            v_manidx := thai32_partner_m(v_mi, v_ri); -- man index partnerM(wi,ri)
+            v_own := (v_scores #>> ARRAY[v_ci::text, v_manidx::text, v_ri::text])::INT;
+            v_oppman := thai32_ipt_opp_idx(v_manidx, v_ri);
+            v_opp := CASE
+              WHEN v_oppman IS NULL THEN NULL
+              ELSE (v_scores #>> ARRAY[v_ci::text, v_oppman::text, v_ri::text])::INT
+            END;
+          END IF;
+
+          IF v_own IS NULL OR v_opp IS NULL THEN
+            CONTINUE;
+          END IF;
+
+          v_dif := v_own - v_opp;
+          v_diff  := v_diff + v_dif;
+          v_pts   := v_pts + thai32_diff_to_pts(v_dif);
+          v_balls := v_balls + v_own;
+          IF v_dif > 0 THEN
+            v_wins := v_wins + 1;
+          END IF;
+        END LOOP;
+
+        INSERT INTO tmp_thai32_totals(gender, name, wins, diff, pts, balls)
+        VALUES (v_gender, v_name, v_wins, v_diff, v_pts, v_balls)
+        ON CONFLICT (gender, name) DO UPDATE SET
+          wins  = tmp_thai32_totals.wins  + EXCLUDED.wins,
+          diff  = tmp_thai32_totals.diff  + EXCLUDED.diff,
+          pts   = tmp_thai32_totals.pts   + EXCLUDED.pts,
+          balls = tmp_thai32_totals.balls + EXCLUDED.balls;
+      END LOOP;
+    END LOOP;
+  END LOOP;
+
+  -- R2: divScores + divRoster within zones
+  FOREACH v_div_key IN ARRAY ARRAY['hard','advance','medium','lite'] LOOP
+    v_nd := COALESCE(jsonb_array_length(v_div_roster #> ARRAY[v_div_key, 'men']), 0);
+    IF v_nd < 1 THEN
+      CONTINUE;
+    END IF;
+
+    -- Men
+    FOR v_mi IN 0..(v_nd-1) LOOP
+      v_name := (v_div_roster #>> ARRAY[v_div_key, 'men', v_mi::text]);
+      IF v_name IS NULL OR trim(v_name) = '' THEN CONTINUE; END IF;
+
+      v_wins  := 0;
+      v_diff  := 0;
+      v_pts   := 0;
+      v_balls := 0;
+
+      FOR v_ri IN 0..3 LOOP
+        v_own := (v_div_scores #>> ARRAY[v_div_key, v_mi::text, v_ri::text])::INT;
+        v_oppmi := thai32_ipt_opp_idx(v_mi, v_ri);
+        v_opp := CASE
+          WHEN v_oppmi IS NULL THEN NULL
+          ELSE (v_div_scores #>> ARRAY[v_div_key, v_oppmi::text, v_ri::text])::INT
+        END;
+        IF v_own IS NULL OR v_opp IS NULL THEN
+          CONTINUE;
+        END IF;
+        v_dif := v_own - v_opp;
+        v_diff  := v_diff + v_dif;
+        v_pts   := v_pts + thai32_diff_to_pts(v_dif);
+        v_balls := v_balls + v_own;
+        IF v_dif > 0 THEN v_wins := v_wins + 1; END IF;
+      END LOOP;
+
+      INSERT INTO tmp_thai32_totals(gender, name, wins, diff, pts, balls)
+      VALUES ('M', v_name, v_wins, v_diff, v_pts, v_balls)
+      ON CONFLICT (gender, name) DO UPDATE SET
+        wins  = tmp_thai32_totals.wins  + EXCLUDED.wins,
+        diff  = tmp_thai32_totals.diff  + EXCLUDED.diff,
+        pts   = tmp_thai32_totals.pts   + EXCLUDED.pts,
+        balls = tmp_thai32_totals.balls + EXCLUDED.balls;
+    END LOOP;
+
+    -- Women
+    FOR v_wi IN 0..(v_nd-1) LOOP
+      v_name := (v_div_roster #>> ARRAY[v_div_key, 'women', v_wi::text]);
+      IF v_name IS NULL OR trim(v_name) = '' THEN CONTINUE; END IF;
+
+      v_wins  := 0;
+      v_diff  := 0;
+      v_pts   := 0;
+      v_balls := 0;
+
+      FOR v_ri IN 0..3 LOOP
+        v_manidx := thai32_div_partner_m(v_wi, v_ri, v_nd);
+        v_own := (v_div_scores #>> ARRAY[v_div_key, v_manidx::text, v_ri::text])::INT;
+        v_oppman := thai32_ipt_opp_idx(v_manidx, v_ri);
+        v_opp := CASE
+          WHEN v_oppman IS NULL THEN NULL
+          ELSE (v_div_scores #>> ARRAY[v_div_key, v_oppman::text, v_ri::text])::INT
+        END;
+        IF v_own IS NULL OR v_opp IS NULL THEN
+          CONTINUE;
+        END IF;
+        v_dif := v_own - v_opp;
+        v_diff  := v_diff + v_dif;
+        v_pts   := v_pts + thai32_diff_to_pts(v_dif);
+        v_balls := v_balls + v_own;
+        IF v_dif > 0 THEN v_wins := v_wins + 1; END IF;
+      END LOOP;
+
+      INSERT INTO tmp_thai32_totals(gender, name, wins, diff, pts, balls)
+      VALUES ('W', v_name, v_wins, v_diff, v_pts, v_balls)
+      ON CONFLICT (gender, name) DO UPDATE SET
+        wins  = tmp_thai32_totals.wins  + EXCLUDED.wins,
+        diff  = tmp_thai32_totals.diff  + EXCLUDED.diff,
+        pts   = tmp_thai32_totals.pts   + EXCLUDED.pts,
+        balls = tmp_thai32_totals.balls + EXCLUDED.balls;
+    END LOOP;
+  END LOOP;
+
+  -- Ranking by combined totals (same priority as client finishTournament):
+  -- wins → diff → pts → coef → balls
+  CREATE TEMP TABLE tmp_thai32_order AS
+  SELECT
+    s.gender,
+    s.name,
+    s.wins,
+    s.diff,
+    s.pts,
+    s.balls,
+    s.coef,
+    s.place,
+    thai32_rating_pts(s.place) AS rating_pts,
+    s.pts AS game_pts
+  FROM (
+    SELECT
+      t.*,
+      thai32_calc_k(t.diff) AS coef,
+      ROW_NUMBER() OVER (
+        ORDER BY
+          t.wins  DESC,
+          t.diff  DESC,
+          t.pts   DESC,
+          thai32_calc_k(t.diff) DESC,
+          t.balls DESC,
+          t.name ASC
+      ) AS place
+    FROM tmp_thai32_totals t
+  ) s;
+
+  -- ③ Upsert player profiles + tournament_results (override place/points/coef by server)
+  FOR v_rec IN
+    SELECT *
+    FROM jsonb_to_recordset(p_results) AS x(
+      name              TEXT,
+      gender            TEXT,
+      place             INT,
+      game_pts          INT,
+      rating_pts        INT,
+      rating_type       TEXT,
+      rating_m          INT,
+      rating_w          INT,
+      rating_mix        INT,
+      tournaments_m     INT,
+      tournaments_w     INT,
+      tournaments_mix   INT,
+      wins              INT,
+      last_seen         TEXT,
+      total_pts         INT,
+      tournaments_played INT
+    )
+  LOOP
+    -- Upsert player (use client-provided accumulated rating totals for idempotency)
+    INSERT INTO players (
+      name, gender, status,
+      rating_m, rating_w, rating_mix,
+      tournaments_m, tournaments_w, tournaments_mix,
+      wins, last_seen, tournaments_played, total_pts
+    )
+    VALUES (
+      trim(v_rec.name), v_rec.gender, 'active',
+      COALESCE(v_rec.rating_m,  0),
+      COALESCE(v_rec.rating_w,  0),
+      COALESCE(v_rec.rating_mix,0),
+      COALESCE(v_rec.tournaments_m,   0),
+      COALESCE(v_rec.tournaments_w,   0),
+      COALESCE(v_rec.tournaments_mix, 0),
+      COALESCE(v_rec.wins, 0),
+      CASE WHEN v_rec.last_seen IS NOT NULL AND v_rec.last_seen <> ''
+           THEN v_rec.last_seen::DATE ELSE NULL END,
+      COALESCE(v_rec.tournaments_played, 0),
+      COALESCE(v_rec.total_pts, 0)
+    )
+    ON CONFLICT (lower(trim(name)), gender) DO UPDATE SET
+      status            = 'active',
+      rating_m          = EXCLUDED.rating_m,
+      rating_w          = EXCLUDED.rating_w,
+      rating_mix        = EXCLUDED.rating_mix,
+      tournaments_m     = EXCLUDED.tournaments_m,
+      tournaments_w     = EXCLUDED.tournaments_w,
+      tournaments_mix   = EXCLUDED.tournaments_mix,
+      wins              = EXCLUDED.wins,
+      last_seen         = CASE
+                            WHEN EXCLUDED.last_seen IS NOT NULL
+                            THEN GREATEST(players.last_seen, EXCLUDED.last_seen)
+                            ELSE players.last_seen
+                          END,
+      tournaments_played = EXCLUDED.tournaments_played,
+      total_pts         = EXCLUDED.total_pts
+    RETURNING * INTO v_player;
+
+    IF v_player.id IS NULL THEN
+      SELECT * INTO v_player
+        FROM players
+       WHERE lower(trim(name)) = lower(trim(v_rec.name))
+         AND gender = v_rec.gender
+       LIMIT 1;
+    END IF;
+
+    IF v_player.id IS NULL THEN
+      CONTINUE;
+    END IF;
+
+    -- Server computed values
+    v_place      := NULL;
+    v_game_pts   := NULL;
+    v_rating_pts := NULL;
+    v_wins_out   := NULL;
+    v_diff_out   := NULL;
+    v_coef_out   := NULL;
+    v_balls_out  := NULL;
+
+    SELECT
+      o.place,
+      o.game_pts,
+      o.rating_pts,
+      o.wins,
+      o.diff,
+      o.coef,
+      o.balls
+    INTO
+      v_place,
+      v_game_pts,
+      v_rating_pts,
+      v_wins_out,
+      v_diff_out,
+      v_coef_out,
+      v_balls_out
+    FROM tmp_thai32_order o
+    WHERE lower(trim(o.name)) = lower(trim(v_rec.name))
+      AND o.gender = v_rec.gender
+    LIMIT 1;
+
+    IF v_place IS NULL THEN
+      -- Fallback to client values
+      v_place      := COALESCE(v_rec.place, 1);
+      v_game_pts   := COALESCE(v_rec.game_pts, 0);
+      v_rating_pts := COALESCE(v_rec.rating_pts, 0);
+      v_wins_out   := COALESCE(v_rec.wins, 0);
+      v_diff_out   := 0;
+      v_coef_out   := 0;
+      v_balls_out  := 0;
+    END IF;
+
+    INSERT INTO tournament_results
+      (tournament_id, player_id, place, game_pts, rating_pts, gender, rating_type,
+       wins, diff, coef, balls)
+    VALUES
+      (v_trn_id, v_player.id, v_place, v_game_pts, v_rating_pts,
+       v_rec.gender, COALESCE(NULLIF(v_rec.rating_type, ''), 'M'),
+       v_wins_out, v_diff_out, v_coef_out, v_balls_out)
+    ON CONFLICT (tournament_id, player_id) DO UPDATE SET
+      place      = EXCLUDED.place,
+      game_pts   = EXCLUDED.game_pts,
+      rating_pts = EXCLUDED.rating_pts,
+      wins       = EXCLUDED.wins,
+      diff       = EXCLUDED.diff,
+      coef       = EXCLUDED.coef,
+      balls      = EXCLUDED.balls;
+
+    v_count := v_count + 1;
+  END LOOP;
+
+  RETURN jsonb_build_object(
+    'ok', true,
+    'tournament_id', v_trn_id,
+    'results_saved', v_count
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION publish_tournament_results_thai32_server_compute(
+  TEXT, TEXT, TEXT, TEXT, TEXT, JSONB, JSONB
+) TO anon, authenticated;
+
+
 -- ── 19. RPC: get_public_leaderboard ──────────────────────────
 -- Публичный рейтинг: топ игроков по типу (M / W / Mix).
 -- Читают все, без авторизации.
@@ -1521,6 +2079,10 @@ BEGIN
             'gender',     p.gender,
             'game_pts',   tr.game_pts,
             'rating_pts', tr.rating_pts
+            ,'wins',       tr.wins
+            ,'diff',       tr.diff
+            ,'coef',       tr.coef
+            ,'balls',      tr.balls
           ) AS r_data
           FROM tournament_results tr
           JOIN players p ON p.id = tr.player_id

@@ -46,6 +46,7 @@ function submitTournamentForm() {
     };
     // IPT always needs exactly 8 players — set capacity if too low
     if (formData.capacity < 8) formData.capacity = 8;
+    formData.division = 'Микст';
   }
 
   // Field → input id map (used for highlighting errors)
@@ -78,6 +79,37 @@ function submitTournamentForm() {
       ? 'Максимальная вместимость — 999 участников'
       : 'Минимальная вместимость — 4 участника';
   }
+
+  // IPT: require explicit 4M + 4W roster in the form
+  let iptParticipantIds = [];
+  if (formData.format === 'IPT Mixed') {
+    const men = [];
+    const women = [];
+    const clearErr = (id) => document.getElementById(id)?.classList.remove('trn-form-inp--error');
+    const markErr  = (id) => document.getElementById(id)?.classList.add('trn-form-inp--error');
+    for (let i = 0; i < 4; i++) {
+      const mid = `trnf-ipt-men-${i}`;
+      const wid = `trnf-ipt-women-${i}`;
+      clearErr(mid); clearErr(wid);
+      const m = g(mid);
+      const w = g(wid);
+      if (!m) markErr(mid); else men.push(m);
+      if (!w) markErr(wid); else women.push(w);
+    }
+    if (men.length !== 4 || women.length !== 4) {
+      showToast('Для IPT Mixed заполните 4 мужчин и 4 женщин', 'error');
+      return;
+    }
+    // Upsert players and bind this exact 8-player roster to tournament participants.
+    iptParticipantIds = [
+      ...men.map(name => upsertPlayerInDB({ name, gender: 'M', status: 'active' })?.id).filter(Boolean),
+      ...women.map(name => upsertPlayerInDB({ name, gender: 'W', status: 'active' })?.id).filter(Boolean),
+    ];
+    if (iptParticipantIds.length !== 8) {
+      showToast('Не удалось сохранить состав IPT (проверьте имена)', 'error');
+      return;
+    }
+  }
   if (firstError) { showToast(firstError, 'error'); return; }
 
   const arr = getTournaments();
@@ -86,6 +118,10 @@ function submitTournamentForm() {
     if (idx !== -1) {
       // Preserve immutable fields: participants, waitlist, winners, status, source
       arr[idx] = { ...arr[idx], ...formData };
+      if (formData.format === 'IPT Mixed') {
+        arr[idx].participants = [...iptParticipantIds];
+        arr[idx].waitlist = [];
+      }
     }
     showToast('Турнир обновлён', 'success');
   } else {
@@ -93,7 +129,7 @@ function submitTournamentForm() {
       id: 't_' + Date.now(),
       ...formData,
       status:       'open',
-      participants: [],
+      participants: formData.format === 'IPT Mixed' ? [...iptParticipantIds] : [],
       waitlist:     [],
       winners:      [],
     });
@@ -126,6 +162,7 @@ function cloneTrn(id) {
     set('trnf-time',   src.time);
     set('trnf-loc',    src.location);
     set('trnf-format', src.format);
+    _trnfFormatChange(src.format);
     set('trnf-div',    src.division);
     set('trnf-level',  src.level);
     if (src.prize) {
@@ -146,7 +183,7 @@ function finishTrn(id) {
 // ── IPT form toggle ──────────────────────────────────────────
 function _trnfFormatChange(val) {
   const show = val === 'IPT Mixed';
-  ['trnf-ipt-opts', 'trnf-ipt-type'].forEach(id => {
+  ['trnf-ipt-opts', 'trnf-ipt-type', 'trnf-ipt-roster-wrap'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = show ? '' : 'none';
   });
@@ -154,5 +191,8 @@ function _trnfFormatChange(val) {
   if (show) {
     const cap = document.getElementById('trnf-cap');
     if (cap && parseInt(cap.value, 10) < 8) cap.value = 8;
+    const div = document.getElementById('trnf-div');
+    if (div) div.value = 'Микст';
+    document.getElementById('trnf-ipt-men-0')?.focus();
   }
 }

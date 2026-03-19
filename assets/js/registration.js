@@ -636,6 +636,35 @@ function _refreshRosterTrn() {
 function _rosterTrnHtml() {
   const arr     = getTournaments();
   const editTrn = rosterTrnEditId !== null ? arr.find(t => t.id === rosterTrnEditId) : null;
+  const db      = loadPlayerDB();
+
+  const iptRoster = (() => {
+    const out = {
+      men:   Array.from({ length: 4 }, () => ''),
+      women: Array.from({ length: 4 }, () => ''),
+    };
+    if (editTrn?.format === 'IPT Mixed' && Array.isArray(editTrn.participants)) {
+      const men = [];
+      const women = [];
+      editTrn.participants.forEach(pid => {
+        const p = db.find(x => String(x.id) === String(pid));
+        if (!p || !p.name) return;
+        if (p.gender === 'M' && men.length < 4) men.push(p.name);
+        if (p.gender === 'W' && women.length < 4) women.push(p.name);
+      });
+      while (men.length < 4) men.push('');
+      while (women.length < 4) women.push('');
+      out.men = men.slice(0, 4);
+      out.women = women.slice(0, 4);
+      return out;
+    }
+    // Fallback to the first roster court values for quick prefill.
+    out.men = (ALL_COURTS?.[0]?.men || []).slice(0, 4);
+    out.women = (ALL_COURTS?.[0]?.women || []).slice(0, 4);
+    while (out.men.length < 4) out.men.push('');
+    while (out.women.length < 4) out.women.push('');
+    return out;
+  })();
 
   const formHtml = rosterTrnFormOpen ? `
     <div class="trn-mgr-form">
@@ -701,6 +730,25 @@ function _rosterTrnHtml() {
             <option value="hard" ${(editTrn?.ipt?.finishType || 'hard') === 'hard' ? 'selected' : ''}>Жёсткий лимит</option>
             <option value="balance" ${(editTrn?.ipt?.finishType || '') === 'balance' ? 'selected' : ''}>До разрыва ±2</option>
           </select>
+        </div>
+        <div class="trn-form-full" id="trnf-ipt-roster-wrap" style="display:${(editTrn?.format || '') === 'IPT Mixed' ? '' : 'none'}">
+          <div class="trn-form-label" style="margin-bottom:8px">👥 Состав IPT (4М + 4Ж)</div>
+          <div class="rc-block" style="margin:0">
+            <div class="rc-hdr" style="background:linear-gradient(90deg,#FFD70020,transparent);border-bottom:2px solid #FFD70035">
+              <span style="color:#FFD700">👑 КОРТ 1</span>
+              <span style="font-size:11px;color:var(--muted)">4м + 4ж</span>
+            </div>
+            <div class="rc-grid">
+              <div class="rc-col-hdr m">🏋️ Мужчины</div>
+              <div class="rc-col-hdr w">👩 Женщины</div>
+              ${Array.from({ length: 4 }, (_, i) => `
+                <div class="rc-entry"><span class="rc-num">${i + 1}</span>
+                  <input class="rc-inp men-input" type="text" id="trnf-ipt-men-${i}" value="${esc(iptRoster.men[i] || '')}" placeholder="Фамилия"></div>
+                <div class="rc-entry"><span class="rc-num">${i + 1}</span>
+                  <input class="rc-inp women-input" type="text" id="trnf-ipt-women-${i}" value="${esc(iptRoster.women[i] || '')}" placeholder="Фамилия"></div>
+              `).join('')}
+            </div>
+          </div>
         </div>
         <div class="trn-form-full">
           <label class="trn-form-label trn-form-toggle-label">

@@ -686,14 +686,45 @@ async function sbPublishTournament(snapshot) {
   if (!results.length) return;
 
   try {
-    const { data, error } = await client.rpc('publish_tournament_results', {
-      p_external_id: String(snapshot.id),
-      p_name:        snapshot.name,
-      p_date:        snapshot.date,
-      p_format:      format,
-      p_division:    division,
-      p_results:     results,
-    });
+    const isThai32 = snapshot.ppc === 4 && snapshot.nc === 4;
+
+    // Server-side compute requires raw scores + roster mapping
+    const raw = isThai32 ? (() => {
+      const st = sbGetLocalState();
+      return {
+        ppc: st.cfg?.ppc ?? snapshot.ppc,
+        nc:  st.cfg?.nc  ?? snapshot.nc,
+        roster: st.roster,
+        scores: st.scores,
+        divRoster: st.divRoster,
+        divScores: st.divScores,
+      };
+    })() : null;
+
+    const rpcName = isThai32
+      ? 'publish_tournament_results_thai32_server_compute'
+      : 'publish_tournament_results';
+
+    const rpcPayload = isThai32
+      ? {
+        p_external_id: String(snapshot.id),
+        p_name:        snapshot.name,
+        p_date:        snapshot.date,
+        p_format:      format,
+        p_division:    division,
+        p_results:     results,
+        p_raw_results: raw,
+      }
+      : {
+        p_external_id: String(snapshot.id),
+        p_name:        snapshot.name,
+        p_date:        snapshot.date,
+        p_format:      format,
+        p_division:    division,
+        p_results:     results,
+      };
+
+    const { data, error } = await client.rpc(rpcName, rpcPayload);
 
     if (error) {
       console.warn('[sbPublishTournament] RPC error:', error.message);
@@ -1186,7 +1217,7 @@ async function gshWriteTournament(tournament) {
     [],
     ['Кортов', tournament.nc, 'Игроков на корт', tournament.ppc, 'Раундов сыграно', tournament.rPlayed, 'Сумма очков', tournament.totalScore],
     [],
-    ['Место', 'Имя', 'Пол', 'Корт', 'Очки'],
+    ['Место', 'Имя', 'Пол', 'Корт', 'Очки', 'Победы', 'Diff', 'K', 'Мячи'],
   ];
   const rows = tournament.players.map((p, i) => [
     i + 1,
@@ -1194,6 +1225,10 @@ async function gshWriteTournament(tournament) {
     p.gender === 'M' ? 'Мужчины' : 'Женщины',
     p.courtName || '—',
     p.totalPts,
+    p.wins || 0,
+    p.diff || 0,
+    p.K || 0,
+    p.balls || 0,
   ]);
   const allRows = [...header, ...rows];
 

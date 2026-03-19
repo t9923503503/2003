@@ -291,6 +291,10 @@ function exportPublicData() {
         gender:     p.gender || 'M',
         game_pts:   p.totalPts || 0,
         rating_pts: calculateRanking(i + 1),
+          wins:       p.wins || 0,
+          diff:       p.diff || 0,
+          coef:       p.K || 0,
+          balls:      p.balls || 0,
       })),
     });
   });

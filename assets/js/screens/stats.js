@@ -1,17 +1,42 @@
 'use strict';
 
 function shareTopAvg() {
-  const ranked = getAllRanked();
-  const allP = [...ranked.M, ...ranked.W];
-  const topAvg = allP
-    .map(p => {
-      const rounds = getAllRoundsForPlayer(p);
-      const total  = rounds.reduce((sum, round) => sum + (round || 0), 0);
-      return { ...p, avgVal: rounds.length ? total / rounds.length : 0, rTotal: rounds.length };
-    })
-    .filter(p => p.rTotal > 0)
-    .sort((a,b) => b.avgVal - a.avgVal)
-    .slice(0, 3);
+  const topAvg = (() => {
+    const ranked = getAllRanked();
+    const allP = [...ranked.M, ...ranked.W];
+
+    // ThaiVolley32: stage score cells store balls, not points.
+    // Use combined points mapping (pts) instead of summing raw rounds.
+    if (ppc === 4 && nc === 4 && fixedPairs === false) {
+      const stage2Map = new Map(); // `${gender}|${name}` → {pts,rPlayed}
+      activeDivKeys().forEach(key => {
+        divGetRanked(key, 'M').forEach(p => stage2Map.set(`M|${p.name}`, p));
+        divGetRanked(key, 'W').forEach(p => stage2Map.set(`W|${p.name}`, p));
+      });
+      const allEnriched = allP.map(p => {
+        const s2 = stage2Map.get(`${p.gender}|${p.name}`);
+        const totalPts = p.pts + (s2?.pts || 0);
+        const rTotal = (p.rPlayed || 0) + (s2?.rPlayed || 0);
+        const avgVal = rTotal > 0 ? (totalPts / rTotal) : 0;
+        return { ...p, totalPts, avgVal, rTotal };
+      });
+      return allEnriched
+        .filter(p => p.rTotal > 0)
+        .sort((a, b) => b.avgVal - a.avgVal)
+        .slice(0, 3);
+    }
+
+    // Legacy: points were stored directly in rounds.
+    return allP
+      .map(p => {
+        const rounds = getAllRoundsForPlayer(p);
+        const total  = rounds.reduce((sum, round) => sum + (round || 0), 0);
+        return { ...p, avgVal: rounds.length ? total / rounds.length : 0, rTotal: rounds.length };
+      })
+      .filter(p => p.rTotal > 0)
+      .sort((a,b) => b.avgVal - a.avgVal)
+      .slice(0, 3);
+  })();
   const lines  = topAvg.map((p,i) => `${MEDALS_3[i]} ${p.name} — ${p.avgVal.toFixed(1)} avg/раунд`);
   shareText(`📈 Топ по эффективности\n${lines.join('\n')}\n#KingBeach`);
 }
@@ -53,29 +78,63 @@ function shareChemistry() {
 function renderStats() {
   const ranked = getAllRanked();
   const allP   = [...ranked.M, ...ranked.W];
-  if (allP.every(p=>p.pts===0)) {
+  const isThai32 = ppc === 4 && nc === 4 && fixedPairs === false;
+
+  // Combined leaderboard (Stage 1 pts + Stage 2 pts) for correct Thai32 "points".
+  const allPEnriched = (() => {
+    if (!isThai32) {
+      return allP.map(p => {
+        const allRounds = getAllRoundsForPlayer(p);
+        const totalPts  = allRounds.reduce((a,b)=>a+b, 0);
+        const bestRound = allRounds.length > 0 ? Math.max(...allRounds) : p.bestRound;
+        const rTotal    = allRounds.length;
+        return { ...p, totalPts, bestRound, rTotal };
+      });
+    }
+
+    const stage2Map = new Map(); // `${gender}|${name}` → stage2 ranked obj
+    activeDivKeys().forEach(key => {
+      divGetRanked(key, 'M').forEach(p => stage2Map.set(`M|${p.name}`, p));
+      divGetRanked(key, 'W').forEach(p => stage2Map.set(`W|${p.name}`, p));
+    });
+
+    return allP.map(p => {
+      const s2 = stage2Map.get(`${p.gender}|${p.name}`);
+      const pts2 = s2?.pts || 0;
+      const totalPts = p.pts + pts2;
+      const rTotal = (p.rPlayed || 0) + (s2?.rPlayed || 0);
+      const bestRound = s2?.bestRound != null ? Math.max(p.bestRound || 0, s2.bestRound) : (p.bestRound || 0);
+      return { ...p, totalPts, bestRound, rTotal };
+    });
+  })();
+
+  if (allPEnriched.every(p => (p.totalPts || 0) === 0)) {
     return `<div class="stats-empty">
       <div style="font-size:48px">📊</div>
       <div class="page-h" style="margin-top:12px">Пусто</div>
       <div class="page-sub">Введите очки на кортах Этапа 1</div>
     </div>`;
   }
-  const total  = allP.reduce((s,p)=>s+p.pts, 0);
-  const avgGlob= (total/allP.length).toFixed(1);
+
+  const total  = allPEnriched.reduce((s,p)=>s+(p.totalPts || 0), 0);
+  const avgGlob= (total/allPEnriched.length).toFixed(1);
+
   const _flatScores = Array.from({length:nc}, (_,ci) => scores[ci].flat());
-  const rPlayed= (() => { let s=0; for(let ci=0;ci<nc;ci++) s+=_flatScores[ci].filter(x=>x!==null).length; return s; })();
+  const rPlayed= (() => {
+    let s=0;
+    for(let ci=0;ci<nc;ci++) s+=_flatScores[ci].filter(x=>x!==null).length;
+    // Thai32 finals: add R2 filled cells to the "rounds played" chip.
+    if (isThai32) {
+      DIV_KEYS.forEach(k => {
+        (divScores[k] || []).flat().forEach(v => { if (v !== null) s++; });
+      });
+    }
+    return s;
+  })();
   const _flatDivScores = {};
   DIV_KEYS.forEach(k => { _flatDivScores[k] = (divScores[k]||[]).flat(); });
   const divVol = DIV_KEYS.reduce((o,k)=>({...o,[k]:_flatDivScores[k].reduce((s,x)=>s+(x||0),0)}),{});
 
-  // Enrich allP with combined total (Stage 1 + Finals)
-  const allPEnriched = allP.map(p => {
-    const allRounds = getAllRoundsForPlayer(p);
-    const totalPts  = allRounds.reduce((a,b)=>a+b, 0);
-    const bestRound = allRounds.length > 0 ? Math.max(...allRounds) : p.bestRound;
-    const rTotal    = allRounds.length;
-    return { ...p, totalPts, bestRound, rTotal };
-  });
   const top5   = [...allPEnriched].sort((a,b)=>b.totalPts-a.totalPts).slice(0,5);
   const maxPts = top5[0]?.totalPts || 1;
 
@@ -188,7 +247,7 @@ function renderStats() {
       <div class="stat-card-title">🏅 ТОП-5 ИГРОКОВ</div>
       <div class="stat-card-desc">Рейтинг по сумме очков за оба этапа · avg — среднее очков за один сыгранный раунд</div>
       ${top5.map((p,i)=>{
-        const pct=Math.round(p.pts/maxPts*100);
+        const pct=Math.round(p.totalPts/maxPts*100);
         const pb=pbCls(p.globalRank);
         const fc=i===0?'bfg':i===1?'bfs':i===2?'bfb':'bfl';
         const avg=p.rTotal>0?(p.totalPts/p.rTotal).toFixed(1):'—';
@@ -341,12 +400,28 @@ function renderRating() {
     </div>`;
   }
 
-  // Enrich with total points
-  const enriched = allP.map(p => {
-    const allRounds = getAllRoundsForPlayer(p);
-    const totalPts = allRounds.reduce((a,b)=>a+b, 0);
-    return { ...p, totalPts };
-  });
+  const isThai32 = ppc === 4 && nc === 4 && fixedPairs === false;
+
+  // Enrich with total points (Thai32: points are mapped from diff, not balls sum)
+  const enriched = (() => {
+    if (!isThai32) {
+      return allP.map(p => {
+        const allRounds = getAllRoundsForPlayer(p);
+        const totalPts = allRounds.reduce((a,b)=>a+b, 0);
+        return { ...p, totalPts };
+      });
+    }
+    const stage2Map = new Map(); // `${gender}|${name}` → stage2 ranked obj
+    activeDivKeys().forEach(key => {
+      divGetRanked(key, 'M').forEach(p => stage2Map.set(`M|${p.name}`, p));
+      divGetRanked(key, 'W').forEach(p => stage2Map.set(`W|${p.name}`, p));
+    });
+    return allP.map(p => {
+      const s2 = stage2Map.get(`${p.gender}|${p.name}`);
+      const totalPts = p.pts + (s2?.pts || 0);
+      return { ...p, totalPts };
+    });
+  })();
 
   // Sort by total points descending
   const sorted = [...enriched].sort((a,b) => b.totalPts - a.totalPts);
