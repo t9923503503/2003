@@ -2,9 +2,10 @@
 
 // ── IPT Quick-Start state ─────────────────────────────────────
 let _rosterFmt    = localStorage.getItem('kotc3_roster_fmt')    || 'standard';
-let _iptCourts    = parseInt(localStorage.getItem('kotc3_ipt_courts') || '2', 10); // 1-4 (= К tabs = groups)
+let _iptCourts    = parseInt(localStorage.getItem('kotc3_ipt_courts') || '2', 10);
 let _iptLimit     = parseInt(localStorage.getItem('kotc3_ipt_lim')    || '21', 10);
 let _iptFinish    = localStorage.getItem('kotc3_ipt_finish') || 'hard';
+let _iptGender    = localStorage.getItem('kotc3_ipt_gender') || 'mixed'; // 'male'|'female'|'mixed'
 let _iptSelectedIds = new Set(
   JSON.parse(localStorage.getItem('kotc3_ipt_sel') || '[]')
 );
@@ -46,6 +47,14 @@ function setIPTQuickFinish(f) {
   localStorage.setItem('kotc3_ipt_finish', f);
   document.querySelectorAll('#seg-ipt-finish .seg-btn').forEach((b,i) => {
     b.classList.toggle('on', ['hard','balance'][i] === f);
+  });
+}
+
+function setIPTGender(g) {
+  _iptGender = g;
+  localStorage.setItem('kotc3_ipt_gender', g);
+  document.querySelectorAll('#seg-ipt-gender .seg-btn').forEach(b => {
+    b.classList.toggle('on', b.dataset.val === g);
   });
 }
 
@@ -168,6 +177,14 @@ function _renderFmtCard() {
           <button class="seg-btn${_iptFinish==='balance'?' on':''}" onclick="setIPTQuickFinish('balance')">±2 Баланс</button>
         </div>
       </div>
+      <div class="sc-row">
+        <span class="sc-lbl">Состав:</span>
+        <div class="seg" id="seg-ipt-gender">
+          <button class="seg-btn${_iptGender==='male'?' on':''}" data-val="male"   onclick="setIPTGender('male')">♂ М/М</button>
+          <button class="seg-btn${_iptGender==='female'?' on':''}" data-val="female" onclick="setIPTGender('female')">♀ Ж/Ж</button>
+          <button class="seg-btn${_iptGender==='mixed'?' on':''}" data-val="mixed"  onclick="setIPTGender('mixed')">⚡ М/Ж</button>
+        </div>
+      </div>
 
       <div class="sc-lbl" style="margin:10px 0 4px">Участники (${needed} чел.):</div>
       ${_renderIPTPlayerList()}
@@ -257,7 +274,7 @@ async function launchQuickIPT() {
     format:       'IPT Mixed',
     status:       'open',
     level:        'medium',
-    gender:       'mixed',
+    gender:       _iptGender,
     date:         new Date().toISOString().split('T')[0],
     venue:        '',
     capacity:     needed,
