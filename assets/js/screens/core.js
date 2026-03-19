@@ -490,12 +490,26 @@ function buildNav() {
   const row = document.createElement('div');
   row.className = 'nav-pills-row';
 
-  for (let ci = 0; ci < nc; ci++) {
-    const meta = COURT_META[ci];
+  // IPT active? → use IPT group count for К-pills and finals keys
+  const _iptNavTrnId = typeof _iptActiveTrnId !== 'undefined' ? _iptActiveTrnId : null;
+  const _iptNavTrn   = _iptNavTrnId ? getTournaments().find(t => t.id === _iptNavTrnId) : null;
+  const _iptNavGroups = _iptNavTrn?.ipt?.groups;
+  const courtCount   = _iptNavGroups ? _iptNavGroups.length : nc;
+
+  const ALL_DIV_DEFS = {
+    hard:    { icon:'🔥', main:'HD', sub:'ТОП',     color:'#e94560' },
+    advance: { icon:'⚡', main:'AV', sub:'2-й ЭШ.', color:'#f5a623' },
+    medium:  { icon:'⚙️', main:'MD', sub:'3-й ЭШ.', color:'#4DA8DA' },
+    lite:    { icon:'🍀', main:'LT', sub:'4-й ЭШ.', color:'#6ABF69' },
+  };
+
+  for (let ci = 0; ci < courtCount; ci++) {
+    const meta = COURT_META[ci] || COURT_META[0];
     const p = document.createElement('button');
     p.className = 'nav-pill'; p.dataset.tab = ci;
     p.style.setProperty('--pill-c', meta.color);
-    p.innerHTML = `<span class="pill-dot"></span><span class="pill-main">К${ci+1}</span><span class="pill-sub">КОРТ</span>`;
+    const subLabel = (_iptNavGroups && _iptNavGroups[ci]) ? _iptNavGroups[ci].name : 'КОРТ';
+    p.innerHTML = `<span class="pill-dot"></span><span class="pill-main">К${ci+1}</span><span class="pill-sub">${subLabel}</span>`;
     p.addEventListener('click', ()=>switchTab(ci));
     row.appendChild(p);
   }
@@ -504,13 +518,12 @@ function buildNav() {
   sep.className = 'nav-pill-sep';
   row.appendChild(sep);
 
-  const ALL_DIV_DEFS = {
-    hard:    { icon:'🔥', main:'HD', sub:'ТОП',     color:'#e94560' },
-    advance: { icon:'⚡', main:'AV', sub:'2-й ЭШ.', color:'#f5a623' },
-    medium:  { icon:'⚙️', main:'MD', sub:'3-й ЭШ.', color:'#4DA8DA' },
-    lite:    { icon:'🍀', main:'LT', sub:'4-й ЭШ.', color:'#6ABF69' },
-  };
-  activeDivKeys().map(id => ({id, ...ALL_DIV_DEFS[id]})).forEach(({id,icon,main,sub,color}) => {
+  // When IPT active: use dynamic finals keys based on group count
+  const divKeys = _iptNavGroups
+    ? (typeof getIPTFinalsNavKeys === 'function' ? getIPTFinalsNavKeys(_iptNavGroups.length) : activeDivKeys())
+    : activeDivKeys();
+
+  divKeys.map(id => ({id, ...ALL_DIV_DEFS[id]})).forEach(({id,icon,main,sub,color}) => {
     const p = document.createElement('button');
     p.className = 'nav-pill pill-div-btn'; p.dataset.tab = id;
     p.style.setProperty('--pill-c', color);
@@ -520,7 +533,6 @@ function buildNav() {
   });
 
   nav.appendChild(row);
-
 
   syncNavActive();
   syncDivLock();
@@ -538,17 +550,25 @@ function syncNavActive() {
   syncIPTNav();
 }
 
-/** Update court pill labels when IPT is active (К1 → ХАРД etc.) */
+/** Update court pill labels + count when IPT active — full nav rebuild */
 function syncIPTNav() {
+  // When IPT is active, group count may differ from nc → rebuild nav entirely
   const trnId = typeof _iptActiveTrnId !== 'undefined' ? _iptActiveTrnId : null;
   const trn   = trnId ? getTournaments().find(t => t.id === trnId) : null;
   const groups = trn?.ipt?.groups;
+  if (!groups) return; // not IPT — pills already correct
+  // Check if current pill count matches group count
+  const existing = document.querySelectorAll('.nav-pill[data-tab]').length;
+  if (existing !== groups.length) {
+    buildNav(); // full rebuild to get right number of К pills
+    return;
+  }
+  // Just update sub-labels without full rebuild
   document.querySelectorAll('.nav-pill[data-tab]').forEach(pill => {
     const tab = parseInt(pill.dataset.tab);
     if (isNaN(tab)) return;
     const subEl = pill.querySelector('.pill-sub');
-    if (!subEl) return;
-    subEl.textContent = (groups && groups[tab]) ? groups[tab].name : 'КОРТ';
+    if (subEl) subEl.textContent = groups[tab] ? groups[tab].name : 'КОРТ';
   });
 }
 
@@ -648,7 +668,12 @@ async function _switchTabInner(id) {
       window.scrollTo({ top: 0, behavior: 'auto' });
       return;
     }
-    const _finalsMap = { hard: 0, advance: 1, medium: 2, lite: 3 };
+    // Dynamic finals map: depends on number of groups
+    const _fKeys = typeof getIPTFinalsNavKeys === 'function'
+      ? getIPTFinalsNavKeys(_iptTrn.ipt.groups.length)
+      : ['hard','advance','medium','lite'];
+    const _finalsMap = {};
+    _fKeys.forEach((k, i) => { _finalsMap[k] = i; });
     if (id in _finalsMap) {
       const fi = _finalsMap[id];
       const allDone = _iptTrn.ipt.groups.every(g => g.status === 'finished');

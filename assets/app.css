@@ -2609,3 +2609,42 @@ button.player-tap:active{opacity:.6}
 .ipt-launch-btn { background: linear-gradient(135deg,#6c4bff,#9d7dff) !important;
   border-color: #6c4bff !important; }
 .ipt-launch-btn:hover { opacity: .9; }
+
+/* ── IPT Nav preview (Кортов selector) ──────────────────────── */
+.ipt-nav-preview { display: flex; align-items: center; gap: 8px; margin: 6px 0 4px;
+  padding: 8px 12px; background: rgba(108,75,255,.12); border-radius: 8px;
+  border: 1px solid rgba(108,75,255,.25); }
+.ipt-nav-k { color: #9d7dff; font-family: 'Barlow Condensed',sans-serif;
+  font-size: 14px; font-weight: 700; letter-spacing: 1px; }
+.ipt-nav-sep { color: var(--muted); font-size: 16px; }
+.ipt-nav-f { color: #e94560; font-family: 'Barlow Condensed',sans-serif;
+  font-size: 14px; font-weight: 700; letter-spacing: 1px; }
+
+/* ── IPT Player search & list ────────────────────────────────── */
+.ipt-ps-wrap { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.ipt-ps-inp { width: 100%; box-sizing: border-box; background: rgba(255,255,255,.07);
+  border: 1.5px solid var(--border); border-radius: 8px; color: var(--text);
+  font-size: 14px; padding: 8px 12px; font-family: 'Barlow Condensed',sans-serif;
+  outline: none; transition: border-color .2s; }
+.ipt-ps-inp:focus { border-color: #9d7dff; }
+.ipt-pl-list { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column;
+  gap: 3px; padding: 2px 0; scrollbar-width: thin; }
+.ipt-pl-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+  border-radius: 7px; cursor: pointer; transition: background .15s; }
+.ipt-pl-item:hover { background: rgba(255,255,255,.07); }
+.ipt-pl-item input[type=checkbox] { accent-color: #9d7dff; width: 16px; height: 16px;
+  flex-shrink: 0; cursor: pointer; }
+.ipt-pl-name { flex: 1; font-size: 14px; color: var(--text);
+  font-family: 'Barlow Condensed',sans-serif; font-weight: 600; }
+.ipt-pl-lv { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 5px;
+  font-family: 'Barlow Condensed',sans-serif; letter-spacing: .5px; }
+.ipt-pl-lv.hard    { background: rgba(233,69,96,.2);  color: #e94560; }
+.ipt-pl-lv.advance { background: rgba(245,166,35,.2); color: #f5a623; }
+.ipt-pl-lv.medium  { background: rgba(77,168,218,.2); color: #4DA8DA; }
+.ipt-pl-lv.lite    { background: rgba(106,191,105,.2);color: #6ABF69; }
+.ipt-ps-footer { display: flex; align-items: center; justify-content: space-between;
+  padding: 4px 2px; }
+.ipt-ps-clear-btn { background: none; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--muted); font-size: 12px; padding: 3px 10px; cursor: pointer;
+  font-family: 'Barlow Condensed',sans-serif; transition: all .2s; }
+.ipt-ps-clear-btn:hover { border-color: #e94560; color: #e94560; }

@@ -1,24 +1,34 @@
 'use strict';
 
 // ── IPT Quick-Start state ─────────────────────────────────────
-let _rosterFmt  = localStorage.getItem('kotc3_roster_fmt') || 'standard'; // 'standard' | 'ipt'
-let _iptN       = parseInt(localStorage.getItem('kotc3_ipt_n')     || '8',  10); // 8|16|24|32
-let _iptLimit   = parseInt(localStorage.getItem('kotc3_ipt_lim')   || '21', 10);
-let _iptFinish  = localStorage.getItem('kotc3_ipt_finish') || 'hard'; // 'hard'|'balance'
-let _iptNames   = []; // quick names, filled from inputs
+let _rosterFmt    = localStorage.getItem('kotc3_roster_fmt')    || 'standard';
+let _iptCourts    = parseInt(localStorage.getItem('kotc3_ipt_courts') || '2', 10); // 1-4 (= К tabs = groups)
+let _iptLimit     = parseInt(localStorage.getItem('kotc3_ipt_lim')    || '21', 10);
+let _iptFinish    = localStorage.getItem('kotc3_ipt_finish') || 'hard';
+let _iptSelectedIds = new Set(
+  JSON.parse(localStorage.getItem('kotc3_ipt_sel') || '[]')
+);
+
+// ── IPT nav keys based on group count ────────────────────────
+function getIPTFinalsNavKeys(n) {
+  if (n <= 1) return ['hard', 'medium'];
+  if (n === 2) return ['hard', 'lite'];
+  if (n === 3) return ['hard', 'medium', 'lite'];
+  return ['hard', 'advance', 'medium', 'lite'];
+}
 
 function switchRosterFmt(fmt) {
   _rosterFmt = fmt;
   localStorage.setItem('kotc3_roster_fmt', fmt);
-  // Re-render just the format settings card
   const card = document.getElementById('fmt-settings-card');
   if (card) card.outerHTML = _renderFmtCard();
-  else switchTab('roster'); // fallback full rebuild
+  else switchTab('roster');
 }
 
-function setIPTQuickN(n) {
-  _iptN = n;
-  localStorage.setItem('kotc3_ipt_n', n);
+function setIPTCourts(n) {
+  _iptCourts = n;
+  localStorage.setItem('kotc3_ipt_courts', n);
+  // Full re-render card (player count changes)
   const card = document.getElementById('fmt-settings-card');
   if (card) card.outerHTML = _renderFmtCard();
 }
@@ -39,20 +49,91 @@ function setIPTQuickFinish(f) {
   });
 }
 
+function iptTogglePlayer(pid) {
+  if (_iptSelectedIds.has(pid)) {
+    _iptSelectedIds.delete(pid);
+  } else {
+    _iptSelectedIds.add(pid);
+  }
+  localStorage.setItem('kotc3_ipt_sel', JSON.stringify([..._iptSelectedIds]));
+  // Update counter
+  const needed = _iptCourts * 8;
+  const cnt = document.getElementById('ipt-ps-count');
+  if (cnt) {
+    const sel = _iptSelectedIds.size;
+    cnt.textContent = `Выбрано: ${sel} / ${needed}`;
+    cnt.style.color = sel === needed ? '#6ABF69' : sel > needed ? '#e94560' : 'var(--muted)';
+  }
+}
+
+function iptPlayerSearch(query) {
+  const q = query.toLowerCase();
+  document.querySelectorAll('.ipt-pl-item').forEach(el => {
+    const name = (el.dataset.name || '').toLowerCase();
+    el.style.display = (!q || name.includes(q)) ? '' : 'none';
+  });
+}
+
+function _renderIPTPlayerList() {
+  const db = loadPlayerDB().filter(p => !p.id.startsWith('ipt_quick_'));
+  const needed = _iptCourts * 8;
+
+  // Sort: previously selected first, then by name
+  const sorted = [...db].sort((a, b) => {
+    const aS = _iptSelectedIds.has(a.id) ? 0 : 1;
+    const bS = _iptSelectedIds.has(b.id) ? 0 : 1;
+    if (aS !== bS) return aS - bS;
+    return (a.name || '').localeCompare(b.name || '', 'ru');
+  });
+
+  // Auto-select first `needed` if nothing selected
+  if (_iptSelectedIds.size === 0 && sorted.length > 0) {
+    sorted.slice(0, needed).forEach(p => _iptSelectedIds.add(p.id));
+    localStorage.setItem('kotc3_ipt_sel', JSON.stringify([..._iptSelectedIds]));
+  }
+
+  const lvlBadge = l => {
+    const map = { hard:'ХРД', medium:'МЕД', lite:'ЛАЙ', advance:'АДВ' };
+    return `<span class="ipt-pl-lv ${l||'medium'}">${map[l]||'МЕД'}</span>`;
+  };
+
+  const items = sorted.map(p => {
+    const chk = _iptSelectedIds.has(p.id) ? 'checked' : '';
+    return `<label class="ipt-pl-item" data-name="${(p.name||'').replace(/"/g,'')}" data-pid="${p.id}">
+      <input type="checkbox" ${chk} onchange="iptTogglePlayer('${p.id}')">
+      <span class="ipt-pl-name">${p.name || '—'}</span>
+      ${lvlBadge(p.level)}
+    </label>`;
+  }).join('') || `<div class="sc-info" style="padding:12px 0">База игроков пуста. Добавьте игроков в разделе 👥</div>`;
+
+  const sel = _iptSelectedIds.size;
+  const countColor = sel === needed ? '#6ABF69' : sel > needed ? '#e94560' : 'var(--muted)';
+
+  return `<div class="ipt-ps-wrap">
+    <input class="ipt-ps-inp" type="text" placeholder="🔍 Поиск игрока..." oninput="iptPlayerSearch(this.value)">
+    <div class="ipt-pl-list">${items}</div>
+    <div class="ipt-ps-footer">
+      <span id="ipt-ps-count" style="color:${countColor}">Выбрано: ${sel} / ${needed}</span>
+      <button class="ipt-ps-clear-btn" onclick="iptClearSelection()">✕ Сбросить</button>
+    </div>
+  </div>`;
+}
+
+function iptClearSelection() {
+  _iptSelectedIds.clear();
+  localStorage.setItem('kotc3_ipt_sel', '[]');
+  const card = document.getElementById('fmt-settings-card');
+  if (card) card.outerHTML = _renderFmtCard();
+}
+
 function _renderFmtCard() {
   if (_rosterFmt === 'ipt') {
-    // Collect saved names from inputs if already rendered
-    const saved = [];
-    document.querySelectorAll('.ipt-qname-inp').forEach(inp => saved.push(inp.value.trim()));
-
-    const nameRows = Array.from({length: _iptN}, (_, i) => {
-      const val = saved[i] || '';
-      return `<div class="ipt-qname-row">
-        <span class="ipt-qname-num">${i+1}</span>
-        <input class="ipt-qname-inp rc-inp" type="text" maxlength="24"
-          placeholder="Игрок ${i+1}" value="${val.replace(/"/g,'&quot;')}">
-      </div>`;
-    }).join('');
+    const needed  = _iptCourts * 8;
+    // Nav preview string
+    const kLabels = ['К1','К2','К3','К4'].slice(0, _iptCourts).join(' ');
+    const fKeys   = getIPTFinalsNavKeys(_iptCourts);
+    const fLbl    = { hard:'HD', advance:'AV', medium:'MD', lite:'LT' };
+    const fLabels = fKeys.map(k => fLbl[k]).join(' ');
 
     return `<div class="settings-card" id="fmt-settings-card">
       <div class="sc-title">⚙️ Формат турнира</div>
@@ -60,12 +141,20 @@ function _renderFmtCard() {
         <button class="fmt-tab" onclick="switchRosterFmt('standard')">🏐 Стандартный</button>
         <button class="fmt-tab on" onclick="switchRosterFmt('ipt')">👑 IPT Mixed</button>
       </div>
+
       <div class="sc-row" style="margin-top:10px">
-        <span class="sc-lbl">Участников:</span>
-        <div class="seg" id="seg-ipt-n">
-          ${[8,16,24,32].map(v=>`<button class="seg-btn${_iptN===v?' on':''}" onclick="setIPTQuickN(${v})">${v}</button>`).join('')}
+        <span class="sc-lbl">Кортов:</span>
+        <div class="seg">
+          ${[1,2,3,4].map(v=>`<button class="seg-btn${_iptCourts===v?' on':''}" onclick="setIPTCourts(${v})">${v}</button>`).join('')}
         </div>
       </div>
+      <div class="ipt-nav-preview">
+        <span class="ipt-nav-k">${kLabels}</span>
+        <span class="ipt-nav-sep">|</span>
+        <span class="ipt-nav-f">${fLabels}</span>
+      </div>
+      <div class="sc-info" style="margin-top:0">${_iptCourts} группа(ы) × 8 игроков = <strong>${needed} чел.</strong></div>
+
       <div class="sc-row">
         <span class="sc-lbl">Лимит очков:</span>
         <div class="seg" id="seg-ipt-lim">
@@ -79,8 +168,10 @@ function _renderFmtCard() {
           <button class="seg-btn${_iptFinish==='balance'?' on':''}" onclick="setIPTQuickFinish('balance')">±2 Баланс</button>
         </div>
       </div>
-      <div class="sc-info">Имена участников (${_iptN} чел.):</div>
-      <div class="ipt-qnames-grid">${nameRows}</div>
+
+      <div class="sc-lbl" style="margin:10px 0 4px">Участники (${needed} чел.):</div>
+      ${_renderIPTPlayerList()}
+
       <div class="sc-btns" style="margin-top:12px">
         <button class="btn-apply ipt-launch-btn" onclick="launchQuickIPT()">🏐 Запустить IPT</button>
       </div>
@@ -124,33 +215,33 @@ function _renderFmtCard() {
 }
 
 async function launchQuickIPT() {
-  // Collect names from inputs
-  const names = [];
-  document.querySelectorAll('.ipt-qname-inp').forEach(inp => names.push(inp.value.trim()));
-  const filled = names.filter(n => n.length > 0);
-  if (filled.length < 8) {
-    showToast(`❌ Заполните имена (нужно минимум 8, заполнено ${filled.length})`, 'error');
+  const needed = _iptCourts * 8;
+  const selectedIds = [..._iptSelectedIds];
+  if (selectedIds.length < 8) {
+    showToast(`❌ Выберите минимум 8 игроков (выбрано ${selectedIds.length})`, 'error');
     return;
   }
-  // Pad with defaults if needed
-  while (names.length < _iptN) names.push(`Игрок ${names.length+1}`);
-  const finalNames = names.map((n,i) => n || `Игрок ${i+1}`);
+  if (selectedIds.length !== needed) {
+    const ok = await showConfirm(`Выбрано ${selectedIds.length} из ${needed}. Продолжить?`);
+    if (!ok) return;
+  }
 
-  // Save names to playerDB and build participant IDs
-  let db = loadPlayerDB();
-  const QID = 'ipt_quick';
-  db = db.filter(p => !p.id.startsWith(QID + '_'));
-  const players = finalNames.map((name, i) => ({
-    id: `${QID}_p${i}`, name, gender: i % 2 === 0 ? 'm' : 'f', level: 'medium'
-  }));
-  db.push(...players);
-  savePlayerDB(db);
+  // Use selected real players from DB
+  const db = loadPlayerDB();
+  const participants = selectedIds
+    .map(id => db.find(p => p.id === id))
+    .filter(Boolean);
+
+  if (participants.length < 8) {
+    showToast('❌ Не найдены игроки в базе', 'error');
+    return;
+  }
 
   // Create / overwrite quick tournament
   let arr = getTournaments();
-  arr = arr.filter(t => t.id !== QID);
+  arr = arr.filter(t => t.id !== 'ipt_quick');
   const trn = {
-    id:           QID,
+    id:           'ipt_quick',
     name:         'IPT Быстрый старт',
     format:       'IPT Mixed',
     status:       'open',
@@ -158,20 +249,21 @@ async function launchQuickIPT() {
     gender:       'mixed',
     date:         new Date().toISOString().split('T')[0],
     venue:        '',
-    capacity:     _iptN,
-    participants: players.map(p => p.id),
+    capacity:     needed,
+    participants: participants.map(p => p.id),
     ipt: {
-      pointLimit: _iptLimit,
-      finishType: _iptFinish,
+      pointLimit:   _iptLimit,
+      finishType:   _iptFinish,
+      courts:       _iptCourts,
       currentGroup: 0,
-      groups: null // will be generated by openIPT
+      groups:       null
     }
   };
   arr.push(trn);
   saveTournaments(arr);
 
-  showToast(`👑 IPT Быстрый старт — ${_iptN} игроков`);
-  setTimeout(() => openIPT(QID), 300);
+  showToast(`👑 IPT Быстрый старт — ${_iptCourts} групп(ы), ${participants.length} игроков`);
+  setTimeout(() => openIPT('ipt_quick'), 300);
 }
 
 function toggleFixedPairs() {
