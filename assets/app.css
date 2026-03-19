@@ -2584,3 +2584,28 @@ button.player-tap:active{opacity:.6}
 /* ── IPT Finals (standings with group column) ────────────── */
 .ipt-st-group { font-size: 11px; color: var(--muted); text-align: center;
   font-family: 'Barlow Condensed', sans-serif; letter-spacing: .5px; }
+
+/* ── Format mode tabs (Standard / IPT Mixed) ─────────────── */
+.fmt-mode-tabs { display: flex; gap: 6px; margin-top: 8px; }
+.fmt-tab { flex: 1; padding: 9px 4px; border-radius: 8px; border: 1.5px solid var(--border);
+  background: rgba(255,255,255,.04); color: var(--muted);
+  font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 600;
+  letter-spacing: .5px; cursor: pointer; transition: all .2s; }
+.fmt-tab.on { background: linear-gradient(135deg,#6c4bff,#9d7dff);
+  border-color: #6c4bff; color: #fff; }
+.fmt-tab:not(.on):hover { border-color: #9d7dff; color: var(--text); }
+
+/* ── IPT Quick-Start name inputs ─────────────────────────── */
+.ipt-qnames-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px; }
+.ipt-qname-row { display: flex; align-items: center; gap: 6px; }
+.ipt-qname-num { min-width: 22px; text-align: right; font-size: 12px;
+  color: var(--muted); font-weight: 600; font-family: 'Barlow Condensed',sans-serif; }
+.ipt-qname-inp { flex: 1; background: rgba(255,255,255,.06); border: 1.5px solid var(--border);
+  border-radius: 7px; color: var(--text); font-size: 14px; padding: 6px 9px;
+  font-family: 'Barlow Condensed', sans-serif; outline: none; transition: border-color .2s; }
+.ipt-qname-inp:focus { border-color: #9d7dff; }
+
+/* ── IPT Launch button ───────────────────────────────────── */
+.ipt-launch-btn { background: linear-gradient(135deg,#6c4bff,#9d7dff) !important;
+  border-color: #6c4bff !important; }
+.ipt-launch-btn:hover { opacity: .9; }

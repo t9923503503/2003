@@ -1,5 +1,179 @@
 'use strict';
 
+// ── IPT Quick-Start state ─────────────────────────────────────
+let _rosterFmt  = localStorage.getItem('kotc3_roster_fmt') || 'standard'; // 'standard' | 'ipt'
+let _iptN       = parseInt(localStorage.getItem('kotc3_ipt_n')     || '8',  10); // 8|16|24|32
+let _iptLimit   = parseInt(localStorage.getItem('kotc3_ipt_lim')   || '21', 10);
+let _iptFinish  = localStorage.getItem('kotc3_ipt_finish') || 'hard'; // 'hard'|'balance'
+let _iptNames   = []; // quick names, filled from inputs
+
+function switchRosterFmt(fmt) {
+  _rosterFmt = fmt;
+  localStorage.setItem('kotc3_roster_fmt', fmt);
+  // Re-render just the format settings card
+  const card = document.getElementById('fmt-settings-card');
+  if (card) card.outerHTML = _renderFmtCard();
+  else switchTab('roster'); // fallback full rebuild
+}
+
+function setIPTQuickN(n) {
+  _iptN = n;
+  localStorage.setItem('kotc3_ipt_n', n);
+  const card = document.getElementById('fmt-settings-card');
+  if (card) card.outerHTML = _renderFmtCard();
+}
+
+function setIPTQuickLimit(lim) {
+  _iptLimit = lim;
+  localStorage.setItem('kotc3_ipt_lim', lim);
+  document.querySelectorAll('#seg-ipt-lim .seg-btn').forEach((b,i) => {
+    b.classList.toggle('on', [10,12,15,18,21][i] === lim);
+  });
+}
+
+function setIPTQuickFinish(f) {
+  _iptFinish = f;
+  localStorage.setItem('kotc3_ipt_finish', f);
+  document.querySelectorAll('#seg-ipt-finish .seg-btn').forEach((b,i) => {
+    b.classList.toggle('on', ['hard','balance'][i] === f);
+  });
+}
+
+function _renderFmtCard() {
+  if (_rosterFmt === 'ipt') {
+    // Collect saved names from inputs if already rendered
+    const saved = [];
+    document.querySelectorAll('.ipt-qname-inp').forEach(inp => saved.push(inp.value.trim()));
+
+    const nameRows = Array.from({length: _iptN}, (_, i) => {
+      const val = saved[i] || '';
+      return `<div class="ipt-qname-row">
+        <span class="ipt-qname-num">${i+1}</span>
+        <input class="ipt-qname-inp rc-inp" type="text" maxlength="24"
+          placeholder="Игрок ${i+1}" value="${val.replace(/"/g,'&quot;')}">
+      </div>`;
+    }).join('');
+
+    return `<div class="settings-card" id="fmt-settings-card">
+      <div class="sc-title">⚙️ Формат турнира</div>
+      <div class="fmt-mode-tabs">
+        <button class="fmt-tab" onclick="switchRosterFmt('standard')">🏐 Стандартный</button>
+        <button class="fmt-tab on" onclick="switchRosterFmt('ipt')">👑 IPT Mixed</button>
+      </div>
+      <div class="sc-row" style="margin-top:10px">
+        <span class="sc-lbl">Участников:</span>
+        <div class="seg" id="seg-ipt-n">
+          ${[8,16,24,32].map(v=>`<button class="seg-btn${_iptN===v?' on':''}" onclick="setIPTQuickN(${v})">${v}</button>`).join('')}
+        </div>
+      </div>
+      <div class="sc-row">
+        <span class="sc-lbl">Лимит очков:</span>
+        <div class="seg" id="seg-ipt-lim">
+          ${[10,12,15,18,21].map(v=>`<button class="seg-btn${_iptLimit===v?' on':''}" onclick="setIPTQuickLimit(${v})">${v}</button>`).join('')}
+        </div>
+      </div>
+      <div class="sc-row">
+        <span class="sc-lbl">Финиш:</span>
+        <div class="seg" id="seg-ipt-finish">
+          <button class="seg-btn${_iptFinish==='hard'?' on':''}" onclick="setIPTQuickFinish('hard')">Хард</button>
+          <button class="seg-btn${_iptFinish==='balance'?' on':''}" onclick="setIPTQuickFinish('balance')">±2 Баланс</button>
+        </div>
+      </div>
+      <div class="sc-info">Имена участников (${_iptN} чел.):</div>
+      <div class="ipt-qnames-grid">${nameRows}</div>
+      <div class="sc-btns" style="margin-top:12px">
+        <button class="btn-apply ipt-launch-btn" onclick="launchQuickIPT()">🏐 Запустить IPT</button>
+      </div>
+    </div>`;
+  }
+
+  // Standard
+  return `<div class="settings-card" id="fmt-settings-card">
+    <div class="sc-title">⚙️ Формат турнира</div>
+    <div class="fmt-mode-tabs">
+      <button class="fmt-tab on" onclick="switchRosterFmt('standard')">🏐 Стандартный</button>
+      <button class="fmt-tab" onclick="switchRosterFmt('ipt')">👑 IPT Mixed</button>
+    </div>
+    <div class="sc-row" style="margin-top:10px">
+      <span class="sc-lbl">Кортов:</span>
+      <div class="seg" id="seg-c">
+        ${[1,2,3,4].map(v=>`<button class="seg-btn${_nc===v?' on':''}" onclick="setPending(${v},_ppc)">${v}</button>`).join('')}
+      </div>
+    </div>
+    <div class="sc-row">
+      <span class="sc-lbl">Игроков:</span>
+      <div class="seg" id="seg-n">
+        ${[4,5].map(v=>`<button class="seg-btn${_ppc===v?' on':''}" onclick="setPending(_nc,${v})">${v}</button>`).join('')}
+      </div>
+    </div>
+    <div class="sc-info" id="sc-info">
+      ${_nc} корт(а) × ${_ppc} = <strong>${_nc*_ppc}м + ${_nc*_ppc}ж</strong>
+    </div>
+    <div class="sc-row">
+      <span class="sc-lbl">Пары:</span>
+      <button class="seg-btn fixed-pairs-toggle${fixedPairs?' on':''}" onclick="toggleFixedPairs()">
+        ${fixedPairs ? '🔗 Фиксированные' : '🔄 Ротация'}
+      </button>
+    </div>
+    <div class="sc-btns">
+      <button class="btn-apply" onclick="applySettings()">✅ Применить</button>
+      <button class="btn-dist"  onclick="autoDistribute()">📋 Распределить</button>
+    </div>
+    <div class="sc-warn">⚠️ Изменение настроек сбросит очки</div>
+  </div>`;
+}
+
+async function launchQuickIPT() {
+  // Collect names from inputs
+  const names = [];
+  document.querySelectorAll('.ipt-qname-inp').forEach(inp => names.push(inp.value.trim()));
+  const filled = names.filter(n => n.length > 0);
+  if (filled.length < 8) {
+    showToast(`❌ Заполните имена (нужно минимум 8, заполнено ${filled.length})`, 'error');
+    return;
+  }
+  // Pad with defaults if needed
+  while (names.length < _iptN) names.push(`Игрок ${names.length+1}`);
+  const finalNames = names.map((n,i) => n || `Игрок ${i+1}`);
+
+  // Save names to playerDB and build participant IDs
+  let db = loadPlayerDB();
+  const QID = 'ipt_quick';
+  db = db.filter(p => !p.id.startsWith(QID + '_'));
+  const players = finalNames.map((name, i) => ({
+    id: `${QID}_p${i}`, name, gender: i % 2 === 0 ? 'm' : 'f', level: 'medium'
+  }));
+  db.push(...players);
+  savePlayerDB(db);
+
+  // Create / overwrite quick tournament
+  let arr = getTournaments();
+  arr = arr.filter(t => t.id !== QID);
+  const trn = {
+    id:           QID,
+    name:         'IPT Быстрый старт',
+    format:       'IPT Mixed',
+    status:       'open',
+    level:        'medium',
+    gender:       'mixed',
+    date:         new Date().toISOString().split('T')[0],
+    venue:        '',
+    capacity:     _iptN,
+    participants: players.map(p => p.id),
+    ipt: {
+      pointLimit: _iptLimit,
+      finishType: _iptFinish,
+      currentGroup: 0,
+      groups: null // will be generated by openIPT
+    }
+  };
+  arr.push(trn);
+  saveTournaments(arr);
+
+  showToast(`👑 IPT Быстрый старт — ${_iptN} игроков`);
+  setTimeout(() => openIPT(QID), 300);
+}
+
 function toggleFixedPairs() {
   fixedPairs = !fixedPairs;
   saveState();
@@ -192,36 +366,7 @@ function renderRoster() {
   let html = `<div class="page-h">✏️ РОСТЕР</div>
   <div class="page-sub">Настройки турнира и имена игроков</div>
 
-  <!-- Формат турнира -->
-  <div class="settings-card">
-    <div class="sc-title">⚙️ Формат турнира</div>
-    <div class="sc-row">
-      <span class="sc-lbl">Кортов:</span>
-      <div class="seg" id="seg-c">
-        ${[1,2,3,4].map(v=>`<button class="seg-btn${_nc===v?' on':''}" onclick="setPending(${v},_ppc)">${v}</button>`).join('')}
-      </div>
-    </div>
-    <div class="sc-row">
-      <span class="sc-lbl">Игроков:</span>
-      <div class="seg" id="seg-n">
-        ${[4,5].map(v=>`<button class="seg-btn${_ppc===v?' on':''}" onclick="setPending(_nc,${v})">${v}</button>`).join('')}
-      </div>
-    </div>
-    <div class="sc-info" id="sc-info">
-      ${_nc} корт(а) × ${_ppc} = <strong>${_nc*_ppc}м + ${_nc*_ppc}ж</strong>
-    </div>
-    <div class="sc-row">
-      <span class="sc-lbl">Пары:</span>
-      <button class="seg-btn fixed-pairs-toggle${fixedPairs?' on':''}" onclick="toggleFixedPairs()">
-        ${fixedPairs ? '🔗 Фиксированные' : '🔄 Ротация'}
-      </button>
-    </div>
-    <div class="sc-btns">
-      <button class="btn-apply" onclick="applySettings()">✅ Применить</button>
-      <button class="btn-dist"  onclick="autoDistribute()">📋 Распределить</button>
-    </div>
-    <div class="sc-warn">⚠️ Изменение настроек сбросит очки</div>
-  </div>
+  ${_renderFmtCard()}
 
   <!-- 3. Таймер -->
   <div class="settings-card">
