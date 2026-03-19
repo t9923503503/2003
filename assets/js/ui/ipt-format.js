@@ -245,14 +245,23 @@ function iptSetScore(trnId, groupIdx, roundNum, courtNum, team, value) {
   const round = group.rounds[roundNum];
   if (!round) return;
   const court = round.courts[courtNum];
-  if (!court || court.status === 'finished') return;
+  // Разрешаем редактировать даже завершённый корт — для ручного ввода
+  if (!court) return;
 
   const v = Math.max(0, Math.min(99, parseInt(value, 10) || 0));
   court[team === 1 ? 'score1' : 'score2'] = v;
 
-  if (iptMatchFinished(court, trn.ipt.pointLimit, trn.ipt.finishType)) {
+  // Пересчитываем статус: закрываем только если ОБА счёта введены (хотя бы 1 > 0)
+  // и условие завершения выполнено
+  const bothEntered = court.score1 > 0 || court.score2 > 0;
+  const wasFinished = court.status === 'finished';
+
+  if (bothEntered && iptMatchFinished(court, trn.ipt.pointLimit, trn.ipt.finishType)) {
+    if (!wasFinished) showToast(`✅ Матч завершён: ${court.score1} : ${court.score2}`, 'success');
     court.status = 'finished';
-    showToast(`✅ Матч завершён: ${court.score1} : ${court.score2}`, 'success');
+  } else {
+    // Если счёт уменьшили ниже лимита — переоткрываем корт
+    court.status = 'active';
   }
 
   saveTournaments(arr);

@@ -226,7 +226,8 @@ function _renderIPTCourt(trn, ipt, group, round, court, cn, db, gi) {
 
   const tid = escAttr(trnId);
   const teamHtml = (names, score, side, disM, disP, winnerSide) => {
-    const editable = !finished && !waiting;
+    // Двойной тап доступен всегда (кроме waiting и завершённого турнира)
+    const editable = !waiting;
     const scoreEl  = editable
       ? `<div class="ipt-score${winnerSide ? ' win' : winner && !winnerSide ? ' lose' : ''} ipt-score-tap"
             title="Двойной тап — ввод с клавиатуры"
