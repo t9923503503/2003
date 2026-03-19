@@ -87,14 +87,20 @@ function iptPlayerSearch(query) {
   });
 }
 
+// Нормализация гендера: M/m/male → 'm', W/w/f/female → 'w'
+function _normG(p) {
+  var r = String(p && p.gender || '').toLowerCase();
+  return (r === 'm' || r === 'male') ? 'm' : (r === 'w' || r === 'f' || r === 'female') ? 'w' : '';
+}
+
 function _renderIPTPlayerList() {
-  // В базе: gender='M' (мужчины) / 'W' (женщины)
-  const genderFilter = { male: 'M', female: 'W', mixed: null };
-  const gf = genderFilter[_iptGender] || null;
+  // Фильтр по гендеру (нормализованный)
+  const gfMap = { male: 'm', female: 'w', mixed: null };
+  const gf = gfMap[_iptGender] || null;
 
   const db = loadPlayerDB()
     .filter(p => !p.id.startsWith('ipt_quick_'))
-    .filter(p => !gf || p.gender === gf);
+    .filter(p => !gf || _normG(p) === gf);
 
   const needed = _iptCourts * 8;
 
@@ -118,14 +124,14 @@ function _renderIPTPlayerList() {
   if (_iptSelectedIds.size === 0 && sorted.length > 0) {
     if (_iptGender === 'mixed') {
       // М/Ж: поровну — половина мужчин, половина женщин
-      const half = Math.floor(needed / 2);
-      const men   = sorted.filter(p => p.gender === 'M').slice(0, half);
-      const women = sorted.filter(p => p.gender === 'W').slice(0, half);
+      const half  = Math.floor(needed / 2);
+      const men   = sorted.filter(p => _normG(p) === 'm').slice(0, half);
+      const women = sorted.filter(p => _normG(p) === 'w').slice(0, half);
       // Если одного пола меньше — добираем из другого
-      const total = men.length + women.length;
-      const extra = needed - total;
-      const allSorted = sorted.filter(p => !men.find(m=>m.id===p.id) && !women.find(w=>w.id===p.id));
-      [...men, ...women, ...allSorted.slice(0, extra)]
+      const picked = new Set([...men, ...women].map(p => p.id));
+      const extra  = needed - picked.size;
+      const rest   = sorted.filter(p => !picked.has(p.id));
+      [...men, ...women, ...rest.slice(0, extra)]
         .forEach(p => _iptSelectedIds.add(p.id));
     } else {
       sorted.slice(0, needed).forEach(p => _iptSelectedIds.add(p.id));
@@ -135,16 +141,12 @@ function _renderIPTPlayerList() {
 
   const lvlBadge = l => {
     const map = { hard:'ХРД', medium:'МЕД', lite:'ЛАЙ', advance:'АДВ' };
-    return `<span class="ipt-pl-lv ${l||'medium'}">${map[l]||'МЕД'}</span>`;
+    return '<span class="ipt-pl-lv ' + (l||'medium') + '">' + (map[l]||'МЕД') + '</span>';
   };
 
   const items = sorted.map(p => {
-    const chk = _iptSelectedIds.has(p.id) ? 'checked' : '';
-    // Нормализуем гендер: 'M'/'m'/'male' → 'm', 'W'/'w'/'f'/'female' → 'w'
-    const raw = String(p.gender || '').toLowerCase();
-    const gd  = (raw === 'm' || raw === 'male')                        ? 'm'
-              : (raw === 'w' || raw === 'f' || raw === 'female')       ? 'w' : '';
-    // data-gender ВСЕГДА на label (не только mixed) → CSS ::before показывает иконку
+    const chk    = _iptSelectedIds.has(p.id) ? 'checked' : '';
+    const gd     = _normG(p);
     const gdAttr = gd ? ' data-gender="' + gd + '"' : '';
     return '<label class="ipt-pl-item"' + gdAttr
       + ' data-name="' + (p.name||'').replace(/"/g,'')
@@ -155,9 +157,9 @@ function _renderIPTPlayerList() {
       + '</label>';
   }).join('') || '<div class="sc-info" style="padding:12px 0">База игроков пуста. Добавьте игроков в разделе 👥</div>';
 
-  const sel     = _iptSelectedIds.size;
-  const selM    = [..._iptSelectedIds].filter(id => db.find(p=>p.id===id)?.gender==='M').length;
-  const selW    = [..._iptSelectedIds].filter(id => db.find(p=>p.id===id)?.gender==='W').length;
+  const sel  = _iptSelectedIds.size;
+  const selM = [..._iptSelectedIds].filter(id => _normG(db.find(p=>p.id===id)) === 'm').length;
+  const selW = [..._iptSelectedIds].filter(id => _normG(db.find(p=>p.id===id)) === 'w').length;
   const mixInfo = _iptGender === 'mixed' ? ` <span style="opacity:.6;font-size:.85em">(♂${selM} ♀${selW})</span>` : '';
   const countColor = sel === needed ? '#6ABF69' : sel > needed ? '#e94560' : 'var(--muted)';
 
