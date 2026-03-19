@@ -58,7 +58,7 @@ function openIPT(trnId) {
     trn.ipt.pointLimit   = Number.isFinite(lim) && lim >= 1 ? lim : 21;
     trn.ipt.finishType   = trn.ipt.finishType || 'hard';
     trn.ipt.currentGroup = 0;
-    trn.ipt.groups       = generateIPTGroups(parts);
+    trn.ipt.groups       = generateIPTGroups(parts, trn.ipt.gender || trn.gender || 'mixed');
     if (trn.status !== 'finished') trn.status = 'active';
     saveTournaments(arr);
   }

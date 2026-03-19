@@ -328,6 +328,7 @@ async function launchQuickIPT() {
       pointLimit:   _iptLimit,
       finishType:   _iptFinish,
       courts:       _iptCourts,
+      gender:       _iptGender,
       currentGroup: 0,
       groups:       null
     }

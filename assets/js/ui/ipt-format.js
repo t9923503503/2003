@@ -5,6 +5,7 @@
 // IPT_SCHEDULE[round][court] = { t1: [idx,idx], t2: [idx,idx] }
 // Properties: each player has 4 unique partners; opponents ≤ 2 times.
 // ════════════════════════════════════════════════════════════════
+// ── Стандартная ротация (М/М или Ж/Ж): индексы 0..7 ──────────
 const IPT_SCHEDULE = [
   // Round 0
   [ { t1:[0,1], t2:[2,3] }, { t1:[4,5], t2:[6,7] } ],
@@ -13,6 +14,19 @@ const IPT_SCHEDULE = [
   // Round 2
   [ { t1:[0,4], t2:[1,6] }, { t1:[2,7], t2:[3,5] } ],
   // Round 3
+  [ { t1:[0,7], t2:[2,5] }, { t1:[1,4], t2:[3,6] } ],
+];
+
+// ── Mixed ротация (М/Ж): 0..3 = мужчины, 4..7 = женщины ─────
+// Каждая пара = [Мi, Жj]. Каждый М играет с каждой Ж ровно 1 раз.
+const IPT_SCHEDULE_MIXED = [
+  // Round 0: M0+W0 vs M1+W1, M2+W2 vs M3+W3
+  [ { t1:[0,4], t2:[1,5] }, { t1:[2,6], t2:[3,7] } ],
+  // Round 1: M0+W1 vs M2+W3, M1+W2 vs M3+W0
+  [ { t1:[0,5], t2:[2,7] }, { t1:[1,6], t2:[3,4] } ],
+  // Round 2: M0+W2 vs M3+W1, M1+W3 vs M2+W0
+  [ { t1:[0,6], t2:[3,5] }, { t1:[1,7], t2:[2,4] } ],
+  // Round 3: M0+W3 vs M2+W1, M1+W0 vs M3+W2
   [ { t1:[0,7], t2:[2,5] }, { t1:[1,4], t2:[3,6] } ],
 ];
 
@@ -30,10 +44,12 @@ function getIPTGroupNames(n) {
 /**
  * Map 8 participant IDs to the rotation schedule.
  * @param {string[]} participants — exactly 8 player IDs
+ * @param {boolean} mixed — true for М/Ж mode (uses IPT_SCHEDULE_MIXED)
  * @returns {Array} rounds array ready for a group
  */
-function generateIPTRounds(participants) {
-  return IPT_SCHEDULE.map((roundDef, rn) => ({
+function generateIPTRounds(participants, mixed) {
+  var schedule = mixed ? IPT_SCHEDULE_MIXED : IPT_SCHEDULE;
+  return schedule.map((roundDef, rn) => ({
     num: rn,
     status: rn === 0 ? 'active' : 'waiting',
     courts: roundDef.map(def => ({
@@ -130,20 +146,42 @@ function buildIPTMatchHistory(rounds) {
  * Generate all groups from the participants list.
  * Always splits into groups of 8 (last group may have remainder).
  * @param {string[]} participants
+ * @param {string} gender — 'mixed'|'male'|'female'
  * @returns {Array} groups array for trn.ipt.groups
  */
-function generateIPTGroups(participants) {
+function generateIPTGroups(participants, gender) {
   const n         = participants.length;
   const numGroups = Math.max(1, Math.floor(n / 8));
   const names     = getIPTGroupNames(numGroups);
+  const isMixed   = gender === 'mixed';
+  const db        = typeof loadPlayerDB === 'function' ? loadPlayerDB() : [];
 
   return names.map((name, gi) => {
     const start   = gi * 8;
-    const players = gi < numGroups - 1
+    var players = gi < numGroups - 1
       ? participants.slice(start, start + 8)
       : participants.slice(start); // last group gets remainder
+
+    // В mixed режиме — сортируем: сначала М (0..3), потом Ж (4..7)
+    if (isMixed && players.length === 8) {
+      var men   = [];
+      var women = [];
+      players.forEach(function(pid) {
+        var p = db.find(function(d) { return d.id === pid; });
+        var raw = String(p && p.gender || '').toLowerCase();
+        if (raw === 'w' || raw === 'f' || raw === 'female') women.push(pid);
+        else men.push(pid);
+      });
+      // 4М + 4Ж — идеальный mixed
+      players = men.slice(0, 4).concat(women.slice(0, 4));
+      // Если не хватает — добираем
+      var rest = participants.slice(start, start + 8)
+        .filter(function(id) { return players.indexOf(id) === -1; });
+      while (players.length < 8 && rest.length > 0) players.push(rest.shift());
+    }
+
     const rounds  = players.length === 8
-      ? generateIPTRounds(players)
+      ? generateIPTRounds(players, isMixed)
       : generateDynamicIPTRounds(players);
     return { name, players, currentRound: 0, status: 'active', rounds };
   });
