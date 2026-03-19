@@ -7,7 +7,7 @@ function iptOpenEdit(el, trnId, gi, rn, cn, side) {
   if (el.querySelector('input')) return; // уже открыт
   const cur = parseInt(el.textContent, 10) || 0;
 
-  // Заменяем div на строку: [input] [✓]
+  // Заменяем div на строку: [input] [✓] + подсказка
   el.innerHTML = `
     <input  id="ipt-inp-${gi}-${rn}-${cn}-${side}"
             class="ipt-score-input"
@@ -17,7 +17,8 @@ function iptOpenEdit(el, trnId, gi, rn, cn, side) {
             onclick="event.stopPropagation()"
             oninput="this.value=this.value.replace(/[^0-9]/g,'')" />
     <button class="ipt-edit-ok"
-            onclick="event.stopPropagation();iptConfirmEdit(this.previousElementSibling,'${trnId}',${gi},${rn},${cn},${side})">✓</button>`;
+            onclick="event.stopPropagation();iptConfirmEdit(this.previousElementSibling,'${trnId}',${gi},${rn},${cn},${side})">✓</button>
+    <span class="ipt-edit-hint">нажмите ✓</span>`;
 
   const inp = el.querySelector('input');
   inp.focus();
