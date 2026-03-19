@@ -11,7 +11,7 @@ let _iptSelectedIds = new Set(
 
 // ── IPT nav keys based on group count ────────────────────────
 function getIPTFinalsNavKeys(n) {
-  if (n <= 1) return ['hard', 'medium'];
+  if (n <= 1) return ['hard'];
   if (n === 2) return ['hard', 'lite'];
   if (n === 3) return ['hard', 'medium', 'lite'];
   return ['hard', 'advance', 'medium', 'lite'];
