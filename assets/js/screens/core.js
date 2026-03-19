@@ -538,23 +538,90 @@ async function finishTournament() {
   if (!confirmed) return;
 
   // Build snapshot
-  const ranked = getAllRanked();
-  const allP   = [...ranked.M, ...ranked.W];
+  const stage1 = getAllRanked();
 
-  // Enrich with totals (Stage 1 + Finals)
-  const players = allP.map(p => {
-    const rds = getAllRoundsForPlayer(p);
-    const totalPts = rds.reduce((a,b)=>a+b,0);
-    return { name: p.name, gender: p.gender, totalPts, courtName: p.courtName };
-  }).filter(p => p.totalPts > 0)
-    .sort((a,b) => b.totalPts - a.totalPts);
+  const metrics = new Map(); // key: `${gender}|${name}`
+  const mkKey = (gender, name) => `${gender}|${name}`;
+
+  const ensure = (gender, name, courtName) => {
+    const k = mkKey(gender, name);
+    if (!metrics.has(k)) {
+      metrics.set(k, {
+        name,
+        gender,
+        courtName: courtName || '',
+        // Stage 1 (R1)
+        wins1: 0, diff1: 0, pts1: 0, balls1: 0, matches1: 0,
+        // Stage 2 (R2)
+        wins2: 0, diff2: 0, pts2: 0, balls2: 0, matches2: 0,
+      });
+    }
+    const m = metrics.get(k);
+    if (courtName && !m.courtName) m.courtName = courtName;
+    return m;
+  };
+
+  // Stage 1 metrics
+  [...stage1.M, ...stage1.W].forEach(p => {
+    const m = ensure(p.gender, p.name, p.courtName);
+    m.wins1 = p.wins;
+    m.diff1 = p.diff;
+    m.pts1  = p.pts;
+    m.balls1 = p.balls;
+    m.matches1 = p.rPlayed;
+  });
+
+  // Stage 2 metrics from zones (HARD/ADV/MED/LITE)
+  activeDivKeys().forEach(key => {
+    const men = divGetRanked(key, 'M');
+    const women = divGetRanked(key, 'W');
+    men.forEach(p => {
+      const m = ensure('M', p.name);
+      m.wins2 = p.wins;
+      m.diff2 = p.diff;
+      m.pts2  = p.pts;
+      m.balls2 = p.balls;
+      m.matches2 = p.rPlayed;
+    });
+    women.forEach(p => {
+      const m = ensure('W', p.name);
+      m.wins2 = p.wins;
+      m.diff2 = p.diff;
+      m.pts2  = p.pts;
+      m.balls2 = p.balls;
+      m.matches2 = p.rPlayed;
+    });
+  });
+
+  const calcKTotal = (diffSum, matches) => {
+    const C = 15 * matches;
+    if (C <= 0) return 1;
+    const denom = C - diffSum;
+    if (Math.abs(denom) < 1e-9) return 999.99;
+    return (C + diffSum) / denom;
+  };
+
+  const players = Array.from(metrics.values()).map(m => {
+    const wins = m.wins1 + m.wins2;
+    const diff = m.diff1 + m.diff2;
+    const pts = m.pts1 + m.pts2;
+    const balls = m.balls1 + m.balls2;
+    const matches = m.matches1 + m.matches2;
+    const K = calcKTotal(diff, matches);
+    return { name: m.name, gender: m.gender, courtName: m.courtName, totalPts: pts, wins, diff, pts, balls, K, matchesTotal: matches };
+  }).sort((a,b) => {
+    if (b.wins  !== a.wins)  return b.wins - a.wins;
+    if (b.diff  !== a.diff)  return b.diff - a.diff;
+    if (b.totalPts !== a.totalPts) return b.totalPts - a.totalPts;
+    if (b.K !== a.K) return b.K - a.K;
+    if (b.balls !== a.balls) return b.balls - a.balls;
+    return a.name.localeCompare(b.name, 'ru');
+  });
 
   const totalScore = players.reduce((s,p)=>s+p.totalPts,0);
-  const rPlayed = (() => {
-    let s=0;
-    for(let ci=0;ci<nc;ci++) s+=scores[ci].flat().filter(x=>x!==null).length;
-    return s;
-  })();
+  const rPlayed = players.length
+    ? (players.reduce((s,p)=>s+(p.matchesTotal||0),0) / players.length)
+    : 0;
 
   // ── Compute highlights for snapshot ────────────────────────
   // Best individual round
@@ -786,11 +853,26 @@ function buildNav() {
   const row = document.createElement('div');
   row.className = 'nav-pills-row';
 
-  // IPT active? → use IPT group count for К-pills and finals keys
-  const _iptNavTrnId = typeof _iptActiveTrnId !== 'undefined' ? _iptActiveTrnId : null;
-  const _iptNavTrn   = _iptNavTrnId ? getTournaments().find(t => t.id === _iptNavTrnId) : null;
-  const _iptNavGroups = _iptNavTrn?.ipt?.groups;
-  const courtCount   = _iptNavGroups ? _iptNavGroups.length : nc;
+  // ── Определяем режим: IPT или стандарт ──────────────────────
+  // Источник 1: активный IPT-турнир (уже запущен)
+  const _iptNavTrnId  = typeof _iptActiveTrnId !== 'undefined' ? _iptActiveTrnId : null;
+  const _iptNavTrn    = _iptNavTrnId ? getTournaments().find(t => t.id === _iptNavTrnId) : null;
+  const _iptNavGroups = _iptNavTrn?.ipt?.groups || null;
+
+  // Источник 2: формат выбран в ростере (_rosterFmt / _iptCourts)
+  const _rosterIsIPT  = typeof _rosterFmt !== 'undefined' && _rosterFmt === 'ipt';
+  const _iptCourtsCnt = typeof _iptCourts  !== 'undefined' ? _iptCourts : 1;
+
+  // Итоговый режим IPT
+  const _isIPT = !!(_iptNavGroups || _rosterIsIPT);
+
+  // Количество К-пиллов: из групп турнира → из настроек ростера → стандарт nc
+  const courtCount = _iptNavGroups
+    ? _iptNavGroups.length
+    : (_rosterIsIPT ? _iptCourtsCnt : nc);
+
+  // Имена групп для суб-лейблов
+  const _IPT_NAMES = {1:['ХАРД'],2:['ХАРД','ЛАЙТ'],3:['ХАРД','МЕДИУМ','ЛАЙТ'],4:['ХАРД','АДВАНС','МЕДИУМ','ЛАЙТ']};
 
   const ALL_DIV_DEFS = {
     hard:    { icon:'🔥', main:'HD', sub:'ТОП',     color:'#e94560' },
@@ -804,7 +886,9 @@ function buildNav() {
     const p = document.createElement('button');
     p.className = 'nav-pill'; p.dataset.tab = ci;
     p.style.setProperty('--pill-c', meta.color);
-    const subLabel = (_iptNavGroups && _iptNavGroups[ci]) ? _iptNavGroups[ci].name : 'КОРТ';
+    // Суб-лейбл: из активного турнира → из имён групп IPT → КОРТ
+    const subLabel = _iptNavGroups?.[ci]?.name
+      || (_isIPT ? (_IPT_NAMES[courtCount]?.[ci] || 'КОРТ') : 'КОРТ');
     p.innerHTML = `<span class="pill-dot"></span><span class="pill-main">К${ci+1}</span><span class="pill-sub">${subLabel}</span>`;
     p.addEventListener('click', ()=>switchTab(ci));
     row.appendChild(p);
@@ -814,8 +898,8 @@ function buildNav() {
   sep.className = 'nav-pill-sep';
   row.appendChild(sep);
 
-  // When IPT active: always show all 4 finals tabs (HD AV MD LT)
-  const divKeys = _iptNavGroups
+  // IPT: всегда HD AV MD LT; стандарт: по activeDivKeys()
+  const divKeys = _isIPT
     ? ['hard', 'advance', 'medium', 'lite']
     : activeDivKeys();
 
