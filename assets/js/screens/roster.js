@@ -53,9 +53,13 @@ function setIPTQuickFinish(f) {
 function setIPTGender(g) {
   _iptGender = g;
   localStorage.setItem('kotc3_ipt_gender', g);
-  document.querySelectorAll('#seg-ipt-gender .seg-btn').forEach(b => {
-    b.classList.toggle('on', b.dataset.val === g);
-  });
+  // Сбросить выбор — игроки другого пола должны уйти из списка
+  _iptSelectedIds.clear();
+  localStorage.setItem('kotc3_ipt_sel', '[]');
+  // Перерисовать карточку чтобы обновился список и кнопки
+  const card = document.getElementById('fmt-settings-card');
+  if (card) card.outerHTML = _renderFmtCard();
+  else switchTab('roster');
 }
 
 function iptTogglePlayer(pid) {
@@ -84,7 +88,14 @@ function iptPlayerSearch(query) {
 }
 
 function _renderIPTPlayerList() {
-  const db = loadPlayerDB().filter(p => !p.id.startsWith('ipt_quick_'));
+  // Фильтр по гендеру: male→'m', female→'f', mixed→все
+  const genderFilter = { male: 'm', female: 'f', mixed: null };
+  const gf = genderFilter[_iptGender] || null;
+
+  const db = loadPlayerDB()
+    .filter(p => !p.id.startsWith('ipt_quick_'))
+    .filter(p => !gf || p.gender === gf);
+
   const needed = _iptCourts * 8;
 
   // Sort: previously selected first, then by name
@@ -119,7 +130,7 @@ function _renderIPTPlayerList() {
   const countColor = sel === needed ? '#6ABF69' : sel > needed ? '#e94560' : 'var(--muted)';
 
   return `<div class="ipt-ps-wrap">
-    <input class="ipt-ps-inp" type="text" placeholder="🔍 Поиск игрока..." oninput="iptPlayerSearch(this.value)">
+    <input class="ipt-ps-inp" type="text" placeholder="🔍 Поиск ${{ male:'мужчины', female:'женщины', mixed:'игрока' }[_iptGender]}..." oninput="iptPlayerSearch(this.value)">
     <div class="ipt-pl-list">${items}</div>
     <div class="ipt-ps-footer">
       <span id="ipt-ps-count" style="color:${countColor}">Выбрано: ${sel} / ${needed}</span>
